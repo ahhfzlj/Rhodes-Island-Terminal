@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Rhodes / PRTS Tactical Delta Emblem -->
+    <path
+        android:fillColor="#ECF0F5"
+        android:pathData="M54,28L78,70H64L54,52L44,70H30L54,28Z" />
+    <!-- Cyan PRTS Inner Core -->
+    <path
+        android:fillColor="#22BBFF"
+        android:pathData="M54,58L61,70H47L54,58Z" />
+    <!-- Endfield Hazard Yellow + Cyan Bottom Bars -->
+    <path
+        android:fillColor="#22BBFF"
+        android:pathData="M30,76H52V80H30Z" />
+    <path
+        android:fillColor="#FFE600"
+        android:pathData="M56,76H78V80H56Z" />
+</vector>

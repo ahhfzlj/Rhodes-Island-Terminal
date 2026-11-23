@@ -1,0 +1,18 @@
+import type { CapacitorConfig } from '@capacitor/cli';
+
+const config: CapacitorConfig = {
+  appId: 'com.arknight.endfield.terminal',
+  appName: '方舟终末地终端',
+  webDir: 'dist',
+  plugins: {
+    CapacitorHttp: {
+      enabled: true,
+    },
+    StatusBar: {
+      overlaysWebView: false,
+      backgroundColor: '#0A0C0F',
+    },
+  },
+};
+
+export default config;
