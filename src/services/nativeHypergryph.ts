@@ -701,7 +701,10 @@ export const nativeHypergryph = {
       registerTs: Number(status.registerTs || 0) * 1000,
     };
 
-    const stubRogue = parseSklandRogue(data?.rogue || data?.rogueInfo);
+    const stubRogue = parseSklandRogue(
+      data?.rogue || data?.rogueInfo,
+      data?.rogueInfoMap
+    );
     let rogue = stubRogue;
 
     try {

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import {
   Award,
+  ChevronDown,
+  ChevronUp,
   Clock,
   RefreshCw,
   Shield,
@@ -24,9 +26,19 @@ export const AkGarrisonPage: React.FC = () => {
     useApp();
   const [selectedMatch, setSelectedMatch] = useState<GarrisonMatch | null>(null);
   const [selectedCovName, setSelectedCovName] = useState<string | null>(null);
+  const [showAllCovenants, setShowAllCovenants] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState('');
   const [importing, setImporting] = useState(false);
+
+  const filteredCovenants = akGarrison
+    ? [...akGarrison.covenantStats]
+        .filter((cov) => cov.name.trim() !== '绝技')
+        .sort((a, b) => b.totalMatches - a.totalMatches || b.winRate - a.winRate)
+    : [];
+  const visibleCovenants = showAllCovenants
+    ? filteredCovenants
+    : filteredCovenants.slice(0, 3);
 
   const handleImportSubmit = async () => {
     if (!importText.trim()) return;
@@ -175,12 +187,12 @@ export const AkGarrisonPage: React.FC = () => {
             </div>
           </section>
 
-          {/* All-Visible Covenant Win-Rate List */}
-          {akGarrison.covenantStats.length > 0 && (
+          {/* Top-3 Collapsible Covenant Win-Rate List (Excludes 绝技) */}
+          {filteredCovenants.length > 0 && (
             <section className="bg-[#13171D] border border-[#293240] p-4 space-y-3 ak-chamfer-sm">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                 <span className="text-xs font-mono-tech text-[#7D899B]">
-                  COVENANT WIN RATE // 全部盟约通关率统计 ({akGarrison.covenantStats.length})
+                  COVENANT WIN RATE // 常用盟约通关率统计 (按激活次数 · {filteredCovenants.length})
                 </span>
                 <span className="text-[11px] font-mono-tech text-[#22BBFF]">
                   点击行可高亮对比 · 点击下方战绩展开阵容
@@ -188,7 +200,7 @@ export const AkGarrisonPage: React.FC = () => {
               </div>
 
               <div className="space-y-2">
-                {akGarrison.covenantStats.map((cov, idx) => {
+                {visibleCovenants.map((cov, idx) => {
                   const selected = selectedCovName === cov.name;
                   const barColor =
                     idx === 0
@@ -232,6 +244,26 @@ export const AkGarrisonPage: React.FC = () => {
                   );
                 })}
               </div>
+
+              {filteredCovenants.length > 3 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllCovenants((prev) => !prev)}
+                  className="w-full py-2 px-3 bg-[#0A0C0F] hover:bg-[#1A2029] border border-[#293240] hover:border-[#22BBFF]/50 text-xs font-mono-tech text-[#B4C0D0] hover:text-[#ECF0F5] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  {showAllCovenants ? (
+                    <>
+                      <ChevronUp className="w-3.5 h-3.5 text-[#22BBFF]" />
+                      收起其余盟约
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="w-3.5 h-3.5 text-[#22BBFF]" />
+                      展开其余 {filteredCovenants.length - 3} 项盟约
+                    </>
+                  )}
+                </button>
+              )}
             </section>
           )}
 

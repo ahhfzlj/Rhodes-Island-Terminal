@@ -104,6 +104,48 @@ export interface RogueEnding {
   code: string;
   unlocked: boolean;
   clearCount: number;
+  maxGrade?: number;
+}
+
+export interface RogueRichTextSegment {
+  text: string;
+  color?: string;
+  highlight?: boolean;
+}
+
+export interface RogueRunOperator {
+  id: string;
+  name: string;
+  rarity: number;
+  profession: string;
+  evolvePhase: number;
+  level: number;
+  upgradePhase?: number;
+  isCandle?: boolean;
+}
+
+export interface RogueRunItem {
+  id: string;
+  name: string;
+  count?: number;
+  description?: string;
+  usage?: string;
+}
+
+export interface RogueRunTag {
+  name: string;
+  description?: string;
+  icon?: string;
+}
+
+export interface RogueRunStats {
+  crossedZone: number;
+  arrivedNode: number;
+  battleNormal: number;
+  battleElite: number;
+  battleBoss: number;
+  gainRelicItem: number;
+  recruitUpgrade: number;
 }
 
 export interface RogueSquadProgress {
@@ -115,12 +157,25 @@ export interface RogueSquadProgress {
 export interface RogueRecentRun {
   runId: string;
   ts: number;
+  startTs?: number;
+  durationSec?: number;
   difficulty: number;
+  modeLabel?: string;
+  lastStage?: string;
+  isFavorite?: boolean;
   squadName: string;
   endingName: string;
   cleared: boolean;
   score: number;
   relicsCount: number;
+  journeySegments?: RogueRichTextSegment[];
+  initChars?: RogueRunOperator[];
+  troopChars?: RogueRunOperator[];
+  lastChars?: RogueRunOperator[];
+  tags?: RogueRunTag[];
+  stats?: RogueRunStats;
+  relics?: RogueRunItem[];
+  totems?: RogueRunItem[];
 }
 
 export interface RogueThemeData {
@@ -142,6 +197,9 @@ export interface RogueThemeData {
   level: number;
   maxLevel: number;
   investedOriginium: number;
+  investedRecord?: number;
+  favoriteChars?: RogueRunOperator[];
+  totemLabel?: string;
   squads: RogueSquadProgress[];
   recentRuns: RogueRecentRun[];
 }

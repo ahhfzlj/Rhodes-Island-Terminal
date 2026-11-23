@@ -13,6 +13,8 @@ import { generateNativeSklandHeaders } from '../src/services/nativeSigner.js';
 import {
   normalizeSklandGarrisonResponse,
   normalizeSklandRogueDetail,
+  parseRogueEndingText,
+  parseSklandRogue,
 } from '../src/utils/parsers.js';
 import type { AkGachaRecord, EndfieldGachaRecord } from '../src/types/index.js';
 
@@ -393,7 +395,29 @@ test('normalizeSklandGarrisonResponse preserves official 终极模拟 mode label
             gameEndTs: 1760001800,
             versionId: 'v3',
             activityId: 'act3autochess',
-            bondInfo: [{ bondId: 'bond_abyss', activate: 1, layer: 6 }],
+            bondInfo: [
+              { bondId: 'bond_ult', activate: 1, layer: 4 },
+              { bondId: 'bond_abyss', activate: 1, layer: 6 },
+              { bondId: 'bond_laterano', activate: 1, layer: 2 },
+            ],
+            acBossInfo: [],
+            chessSquad: [],
+          },
+          {
+            id: 'rec_final_2',
+            completeState: 1,
+            trophyAfter: 250,
+            bandId: 'band_1',
+            mode: '终极模拟',
+            passRound: 10,
+            gameStartTs: 1759900000,
+            gameEndTs: 1759901500,
+            versionId: 'v3',
+            activityId: 'act3autochess',
+            bondInfo: [
+              { bondId: 'bond_ult', activate: 1, layer: 3 },
+              { bondId: 'bond_abyss', activate: 1, layer: 4 },
+            ],
             acBossInfo: [],
             chessSquad: [],
           },
@@ -409,7 +433,9 @@ test('normalizeSklandGarrisonResponse preserves official 终极模拟 mode label
             seasonName: '卫戍协议：终极',
           },
           bondInfo: {
+            bond_ult: { id: 'bond_ult', name: '绝技' },
             bond_abyss: { id: 'bond_abyss', name: '深海' },
+            bond_laterano: { id: 'bond_laterano', name: '拉特兰' },
           },
         },
       ],
@@ -418,7 +444,12 @@ test('normalizeSklandGarrisonResponse preserves official 终极模拟 mode label
 
   assert.equal(season.highestDiffLabel, '终极模拟');
   assert.equal(season.matches[0].modeLabel, '终极模拟');
-  assert.deepEqual(season.matches[0].covenants, ['深海 6层']);
+  assert.deepEqual(season.matches[0].covenants, ['深海 6层', '绝技 4层', '拉特兰 2层']);
+  assert.deepEqual(
+    season.covenantStats.map((c) => c.name),
+    ['深海', '拉特兰']
+  );
+  assert.equal(season.covenantStats[0].totalMatches, 2);
 });
 
 test('normalizeSklandRogueDetail parses real theme name, N18 difficulty, bpLevel, bank invest, endings, squads, and recentRuns', () => {
@@ -488,10 +519,11 @@ test('normalizeSklandRogueDetail parses real theme name, N18 difficulty, bpLevel
   assert.equal(theme.level, 145);
   assert.equal(theme.investedOriginium, 999);
   assert.equal(theme.relicsUnlocked, 214);
-  assert.equal(theme.relicsTotalKnown, false);
+  assert.equal(theme.relicsTotal, 296);
+  assert.equal(theme.relicsTotalKnown, true);
   assert.equal(theme.totalRuns, 42);
   assert.deepEqual(
-    theme.endings.map((e) => e.name),
+    theme.endings.filter((e) => e.unlocked).map((e) => e.name),
     ['终末新生', '千面一语']
   );
   assert.equal(theme.squads.length, 2);
@@ -500,4 +532,268 @@ test('normalizeSklandRogueDetail parses real theme name, N18 difficulty, bpLevel
   assert.equal(theme.recentRuns.length, 2);
   assert.equal(theme.recentRuns[0].runId, 'run_1');
   assert.equal(theme.recentRuns[1].relicsCount, 3);
+});
+
+test('parseSklandRogue reads rec.rogueId, relicCnt, bank invest, bpLevel, clearTime, and rogueInfoMap without index shift', () => {
+  const parsed = parseSklandRogue(
+    {
+      records: [
+        {
+          rogueId: 'rogue_5',
+          relicCnt: 214,
+          bank: { current: 500, record: 999 },
+          clearTime: 41,
+          bpLevel: 110,
+          medal: { total: 12, current: 12 },
+        },
+        {
+          rogueId: 'rogue_6',
+          relicCnt: 88,
+          bank: { current: 320, record: 640 },
+          clearTime: 12,
+          bpLevel: 98,
+          medal: { total: 10, current: 6 },
+        },
+      ],
+    },
+    {
+      rogue_5: { id: 'rogue_5', name: '岁的界园志异' },
+      rogue_6: { id: 'rogue_6', name: '沉沦者的黑流树海' },
+    }
+  );
+
+  assert.equal(parsed.length, 2);
+  assert.equal(parsed[0].themeId, 'rogue_5');
+  assert.equal(parsed[0].themeName, '岁的界园志异');
+  assert.equal(parsed[0].relicsUnlocked, 214);
+  assert.equal(parsed[0].relicsTotal, 294);
+  assert.equal(parsed[0].investedOriginium, 500);
+  assert.equal(parsed[0].investedRecord, 999);
+  assert.equal(parsed[0].clearedRuns, 41);
+  assert.equal(parsed[0].level, 110);
+  assert.equal(parsed[1].themeId, 'rogue_6');
+  assert.equal(parsed[1].themeName, '沉沦者的黑流树海');
+  assert.equal(parsed[1].relicsUnlocked, 88);
+  assert.equal(parsed[1].investedOriginium, 320);
+  assert.equal(parsed[1].investedRecord, 640);
+});
+
+test('normalizeSklandRogueDetail handles rogue_5 ending IDs, JSON journey endingText, zero-career fallback, and full run details', () => {
+  const parsedText = parseRogueEndingText(
+    JSON.stringify([
+      { type: 'text', content: '您', color: '#FFFFFF73' },
+      { type: 'text', content: ' Dr.ahhfzxc ', color: '#80E3EE', fontSize: 500 },
+      { type: 'text', content: '驻足在', color: '#FFFFFF73' },
+      { type: 'text', content: ' 血色空脉 ', color: '#80E3EE', fontSize: 500 },
+      { type: 'text', content: '光芒之下。', color: '#FFFFFF73' },
+    ])
+  );
+  assert.equal(parsedText.extractedEndingName, '血色空脉');
+  assert.equal(parsedText.segments.length, 5);
+
+  const stubs = parseSklandRogue({
+    records: [
+      {
+        rogueId: 'rogue_5',
+        relicCnt: 214,
+        bank: { current: 999, record: 999 },
+        clearTime: 35,
+        bpLevel: 110,
+        medal: { total: 12, current: 12 },
+      },
+    ],
+  });
+
+  const theme = normalizeSklandRogueDetail(
+    'rogue_5',
+    {
+      topics: [{ id: 'rogue_5', name: '岁的界园志异', isSelected: true }],
+      itemInfo: {
+        rogue_5_copper_R_13_a: {
+          name: '火照吉通宝',
+          description: '通宝描述',
+          usage: '全队攻击力+15%',
+        },
+        rogue_5_relic_explore_2: {
+          name: '古旧罗盘',
+          description: '罗盘描述',
+          usage: '初始希望+2',
+        },
+      },
+      history: {
+        bpLevel: 110,
+        mode: '请君入园',
+        modeGrade: 15,
+        score: 2512,
+        medal: { current: 12, count: 12 },
+        chars: [
+          {
+            id: 'char_4195_radian',
+            name: '电弧',
+            rarity: 5,
+            profession: 'SUPPORT',
+            evolvePhase: 2,
+            level: 80,
+          },
+        ],
+        records: [
+          {
+            id: 'r_win',
+            startTs: '1762945337',
+            endTs: '1762947137',
+            mode: '请君入园',
+            modeGrade: 15,
+            success: 1,
+            score: 2317,
+            lastStage: '末狩',
+            band: { id: 'rogue_5_band_23', name: '岁影回音分队' },
+            cntCrossedZone: 7,
+            cntArrivedNode: 90,
+            cntBattleNormal: 22,
+            cntBattleElite: 2,
+            cntBattleBoss: 3,
+            cntGainRelicItem: 73,
+            cntRecruitUpgrade: 45,
+            initChars: [
+              {
+                id: 'char_1043_leizi2',
+                name: '司霆惊蛰',
+                rarity: 5,
+                profession: 'WARRIOR',
+                evolvePhase: 2,
+                level: 90,
+              },
+            ],
+            troopChars: [
+              {
+                id: 'char_1043_leizi2',
+                name: '司霆惊蛰',
+                rarity: 5,
+                profession: 'WARRIOR',
+                evolvePhase: 2,
+                level: 90,
+              },
+              {
+                id: 'char_4163_rosesa',
+                name: '瑰盐',
+                rarity: 4,
+                profession: 'MEDIC',
+                evolvePhase: 2,
+                level: 80,
+              },
+            ],
+            lastChars: [
+              {
+                id: 'char_1043_leizi2',
+                name: '司霆惊蛰',
+                rarity: 5,
+                profession: 'WARRIOR',
+                evolvePhase: 2,
+                level: 90,
+              },
+            ],
+            gainRelicList: ['rogue_5_relic_explore_2'],
+            totemList: [{ id: 'rogue_5_copper_R_13_a', count: 2 }],
+            tagList: [{ name: '收藏大师', description: '获得收藏品>=60' }],
+            endingText: JSON.stringify([
+              { type: 'text', content: '您 Dr.这位同学 使用 岁影回音分队 见证了', color: '#FFFFFF73' },
+              { type: 'text', content: ' 无中生有 ', color: '#BCF4CA', fontSize: 500 },
+              { type: 'text', content: '落墨成卷。', color: '#FFFFFF73' },
+            ]),
+          },
+          {
+            id: 'r_fail',
+            startTs: '1762900000',
+            endTs: '1762900143',
+            mode: '保密等级',
+            modeGrade: 0,
+            success: 0,
+            score: 108,
+            band: { id: 'band_1', name: '堡垒战术分队' },
+            endingText: parsedText.segments.map((s) => ({
+              type: 'text',
+              content: s.text,
+              color: s.color || '#FFFFFF73',
+              fontSize: s.highlight ? 500 : undefined,
+            })),
+          },
+        ],
+        favourRecords: [
+          {
+            id: 'r_win',
+            startTs: '1762945337',
+            endTs: '1762947137',
+            mode: '请君入园',
+            modeGrade: 15,
+            success: 1,
+            score: 2317,
+            band: { id: 'rogue_5_band_23', name: '岁影回音分队' },
+            endingText: '无中生有',
+          },
+        ],
+      },
+      career: {
+        game: 0,
+        invest: 0,
+        relic: 0,
+        clearInfo: {
+          difficulty: '请君入园',
+          grade: 15,
+          endings: ['ro5_ending_1', 'ro5_ending_2', 'ro5_ending_3', 'ro5_ending_4'],
+          endingGrade: {
+            ro5_ending_1: 15,
+            ro5_ending_2: 15,
+            ro5_ending_3: 15,
+            ro5_ending_4: 15,
+          },
+        },
+      },
+    },
+    stubs[0]
+  );
+
+  // Career relic=0 & invest=0 fall back accurately to player/info stub values
+  assert.equal(theme.relicsUnlocked, 214);
+  assert.equal(theme.relicsTotal, 294);
+  assert.equal(theme.relicsTotalKnown, true);
+  assert.equal(theme.investedOriginium, 999);
+  assert.equal(theme.investedRecord, 999);
+  assert.equal(theme.totemLabel, '通宝');
+  assert.equal(theme.favoriteChars?.[0].name, '电弧');
+  assert.equal(theme.favoriteChars?.[0].rarity, 6);
+  assert.equal(theme.favoriteChars?.[0].profession, '辅助');
+
+  // Ending IDs translated to official Chinese names + 5th ending locked
+  assert.deepEqual(
+    theme.endings.map((e) => [e.name, e.unlocked, e.maxGrade]),
+    [
+      ['依律镇抚', true, 15],
+      ['长卷留痕', true, 15],
+      ['黑白入玄', true, 15],
+      ['无中生有', true, 15],
+      ['落子无悔', false, undefined],
+    ]
+  );
+
+  // Run details verified (no raw JSON in endingName!)
+  const winRun = theme.recentRuns.find((r) => r.runId === 'r_win')!;
+  const failRun = theme.recentRuns.find((r) => r.runId === 'r_fail')!;
+  assert.equal(winRun.endingName, '无中生有');
+  assert.equal(winRun.lastStage, '末狩');
+  assert.equal(winRun.isFavorite, true);
+  assert.equal(winRun.durationSec, 1800);
+  assert.equal(winRun.initChars?.[0].rarity, 6);
+  assert.equal(winRun.initChars?.[0].profession, '近卫');
+  assert.equal(winRun.troopChars?.[1].rarity, 5);
+  assert.equal(winRun.troopChars?.[1].profession, '医疗');
+  assert.equal(winRun.stats?.crossedZone, 7);
+  assert.equal(winRun.stats?.battleBoss, 3);
+  assert.equal(winRun.relics?.[0].name, '古旧罗盘');
+  assert.equal(winRun.totems?.[0].name, '火照吉通宝');
+  assert.equal(winRun.totems?.[0].count, 2);
+  assert.equal(winRun.tags?.[0].name, '收藏大师');
+
+  assert.equal(failRun.endingName, '血色空脉');
+  assert.equal(failRun.endingName.includes('[{"type"'), false);
+  assert.equal(failRun.isFavorite, false);
 });

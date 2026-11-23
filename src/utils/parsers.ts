@@ -8,6 +8,10 @@ import type {
   GarrisonSeasonData,
   RogueEnding,
   RogueRecentRun,
+  RogueRichTextSegment,
+  RogueRunItem,
+  RogueRunOperator,
+  RogueRunTag,
   RogueSquadProgress,
   RogueThemeData,
 } from '../types/index.js';
@@ -485,6 +489,7 @@ export function normalizeSklandGarrisonResponse(
     ) || '均衡防御策略';
 
   const covenantStats: GarrisonCovenantStat[] = Array.from(covenantCounter.entries())
+    .filter(([name]) => name.trim() !== '绝技')
     .map(([name, val]) => ({
       name,
       totalMatches: val.total,
@@ -514,15 +519,243 @@ export function normalizeSklandGarrisonResponse(
 
 export const ROGUE_THEME_META: Record<
   string,
-  { name: string; codeName: string; cap: number; maxLevel: number }
+  {
+    name: string;
+    codeName: string;
+    cap: number;
+    maxLevel: number;
+    relicTotal: number;
+    totemLabel: string;
+  }
 > = {
-  rogue_1: { name: '傀影与猩红孤钻', codeName: 'IS#2 // PHANTOM', cap: 3, maxLevel: 145 },
-  rogue_2: { name: '水月与深蓝之树', codeName: 'IS#3 // MIZUKI', cap: 15, maxLevel: 155 },
-  rogue_3: { name: '探索者的银凇止境', codeName: 'IS#4 // SAMI', cap: 15, maxLevel: 155 },
-  rogue_4: { name: '萨卡兹的无终奇语', codeName: 'IS#5 // SARKAZ', cap: 18, maxLevel: 175 },
-  rogue_5: { name: '岁的界园志异', codeName: 'IS#6 // JIEYUAN', cap: 18, maxLevel: 175 },
-  rogue_6: { name: '黑流树海', codeName: 'IS#7 // HEILIU', cap: 18, maxLevel: 175 },
+  rogue_1: {
+    name: '傀影与猩红孤钻',
+    codeName: 'IS#2 // PHANTOM',
+    cap: 3,
+    maxLevel: 155,
+    relicTotal: 245,
+    totemLabel: '剧目',
+  },
+  rogue_2: {
+    name: '水月与深蓝之树',
+    codeName: 'IS#3 // MIZUKI',
+    cap: 15,
+    maxLevel: 170,
+    relicTotal: 262,
+    totemLabel: '符号认知',
+  },
+  rogue_3: {
+    name: '探索者的银凇止境',
+    codeName: 'IS#4 // SAMI',
+    cap: 15,
+    maxLevel: 155,
+    relicTotal: 263,
+    totemLabel: '密文板',
+  },
+  rogue_4: {
+    name: '萨卡兹的无终奇语',
+    codeName: 'IS#5 // SARKAZ',
+    cap: 18,
+    maxLevel: 155,
+    relicTotal: 296,
+    totemLabel: '思绪',
+  },
+  rogue_5: {
+    name: '岁的界园志异',
+    codeName: 'IS#6 // JIEYUAN',
+    cap: 18,
+    maxLevel: 155,
+    relicTotal: 294,
+    totemLabel: '通宝',
+  },
+  rogue_6: {
+    name: '沉沦者的黑流树海',
+    codeName: 'IS#7 // HEILIU',
+    cap: 18,
+    maxLevel: 125,
+    relicTotal: 251,
+    totemLabel: '零件',
+  },
 };
+
+export const ROGUE_ENDINGS_META: Record<
+  string,
+  Array<{ id: string; aliases?: string[]; name: string; code: string }>
+> = {
+  rogue_1: [
+    { id: 'ro_ending_1', aliases: ['ro1_ending_1'], name: '舞会终场', code: 'END-1' },
+    { id: 'ro_ending_2', aliases: ['ro1_ending_2'], name: '滑稽喜剧', code: 'END-2' },
+    { id: 'ro_ending_3', aliases: ['ro1_ending_3'], name: '盛大揭幕', code: 'END-3' },
+    { id: 'ro_ending_4', aliases: ['ro1_ending_4'], name: '沉默之章', code: 'END-4' },
+  ],
+  rogue_2: [
+    { id: 'ro2_ending_1', name: '平凡即是喜乐', code: 'END-1' },
+    { id: 'ro2_ending_2', name: '静谧时代', code: 'END-2' },
+    { id: 'ro2_ending_3', name: '息潮的代价', code: 'END-3' },
+    { id: 'ro2_ending_4', name: '如星空般深蓝', code: 'END-4' },
+  ],
+  rogue_3: [
+    { id: 'ro3_ending_1', name: '越过群山', code: 'END-1' },
+    { id: 'ro3_ending_2', name: '直至冬夜降临', code: 'END-2' },
+    { id: 'ro3_ending_3', name: '自深处的一瞥', code: 'END-3' },
+    { id: 'ro3_ending_4', name: '终始', code: 'END-4' },
+    { id: 'ro3_ending_c', name: '短暂光芒', code: 'END-EX' },
+  ],
+  rogue_4: [
+    { id: 'ro4_ending_1', name: '憧憬未来', code: 'END-1' },
+    { id: 'ro4_ending_2', name: '双王记', code: 'END-2' },
+    { id: 'ro4_ending_3', name: '天使之城', code: 'END-3' },
+    { id: 'ro4_ending_4', name: '遁入阇那', code: 'END-4' },
+    { id: 'ro4_ending_5', name: '无瑕之日', code: 'END-5' },
+  ],
+  rogue_5: [
+    { id: 'ro5_ending_1', name: '依律镇抚', code: 'END-1' },
+    { id: 'ro5_ending_2', name: '长卷留痕', code: 'END-2' },
+    { id: 'ro5_ending_3', name: '黑白入玄', code: 'END-3' },
+    { id: 'ro5_ending_4', name: '无中生有', code: 'END-4' },
+    { id: 'ro5_ending_5', name: '落子无悔', code: 'END-5' },
+  ],
+  rogue_6: [
+    { id: 'ro6_ending_1', name: '强制重启', code: 'END-1' },
+    { id: 'ro6_ending_2', name: '维度重构', code: 'END-2' },
+    { id: 'ro6_ending_3', name: '纠缠，调和', code: 'END-3' },
+    { id: 'ro6_ending_4', name: '旧日重燃', code: 'END-4' },
+  ],
+};
+
+const PROFESSION_ZH: Record<string, string> = {
+  PIONEER: '先锋',
+  WARRIOR: '近卫',
+  TANK: '重装',
+  SNIPER: '狙击',
+  CASTER: '术师',
+  MEDIC: '医疗',
+  SUPPORT: '辅助',
+  SPECIAL: '特种',
+};
+
+export function resolveRogueEndingName(topicId: string, rawIdOrName: string): string {
+  const clean = stripOfficialTags(rawIdOrName);
+  if (!clean) return '';
+
+  const themeEndings = ROGUE_ENDINGS_META[topicId] || [];
+  const inTheme = themeEndings.find(
+    (e) => e.id === clean || e.name === clean || (e.aliases && e.aliases.includes(clean))
+  );
+  if (inTheme) return inTheme.name;
+
+  for (const list of Object.values(ROGUE_ENDINGS_META)) {
+    const found = list.find(
+      (e) => e.id === clean || e.name === clean || (e.aliases && e.aliases.includes(clean))
+    );
+    if (found) return found.name;
+  }
+
+  return clean;
+}
+
+export function parseRogueEndingText(raw: unknown): {
+  segments: RogueRichTextSegment[];
+  plainText: string;
+  extractedEndingName: string;
+} {
+  let arr: any[] | null = null;
+  if (Array.isArray(raw)) {
+    arr = raw;
+  } else if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (trimmed.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) arr = parsed;
+      } catch {
+        // Fall through to plain text handling
+      }
+    }
+  }
+
+  if (arr) {
+    const segments: RogueRichTextSegment[] = arr
+      .map((item: any): RogueRichTextSegment => {
+        const text = String(item?.content ?? item?.text ?? '');
+        const color = typeof item?.color === 'string' ? item.color : undefined;
+        const highlight = Boolean(
+          (item?.fontSize && Number(item.fontSize) >= 500) ||
+            (color && !color.toUpperCase().startsWith('#FFFFFF'))
+        );
+        return { text, color, highlight };
+      })
+      .filter((s) => s.text.length > 0);
+
+    let extractedEndingName = '';
+    for (let i = 1; i < segments.length; i++) {
+      const prev = segments[i - 1].text;
+      if (/见证了|踏入|抵达|驻足在/.test(prev)) {
+        const cand = segments[i].text.trim();
+        if (cand && cand.length <= 24) {
+          extractedEndingName = cand;
+          break;
+        }
+      }
+    }
+
+    const plainText = segments.map((s) => s.text).join('').trim();
+    return { segments, plainText, extractedEndingName };
+  }
+
+  const clean = stripOfficialTags(raw);
+  return {
+    segments: clean ? [{ text: clean }] : [],
+    plainText: clean,
+    extractedEndingName: clean.length > 0 && clean.length <= 24 ? clean : '',
+  };
+}
+
+function mapSklandRogueChar(c: any): RogueRunOperator {
+  const rawR = Number(c?.rarity ?? 5);
+  const rarity = rawR >= 0 && rawR <= 5 ? rawR + 1 : Math.min(6, Math.max(1, rawR));
+  const rawProf = String(c?.profession || '');
+  const profession = PROFESSION_ZH[rawProf.toUpperCase()] || rawProf;
+
+  return {
+    id: String(c?.id || ''),
+    name: stripOfficialTags(c?.name) || String(c?.id || '干员'),
+    rarity,
+    profession,
+    evolvePhase: Number(c?.evolvePhase ?? 0),
+    level: Number(c?.level ?? 1),
+    ...(c?.upgradePhase !== undefined ? { upgradePhase: Number(c.upgradePhase) } : {}),
+    ...(c?.isCandle !== undefined ? { isCandle: Boolean(c.isCandle) } : {}),
+  };
+}
+
+function mapSklandRogueItems(
+  rawList: any[],
+  itemInfoMap: Record<string, any>
+): RogueRunItem[] {
+  const items: RogueRunItem[] = [];
+  for (const entry of rawList) {
+    const id = typeof entry === 'string' ? entry : String(entry?.id || '');
+    if (!id) continue;
+    const count =
+      typeof entry === 'object' && entry?.count !== undefined
+        ? Number(entry.count)
+        : undefined;
+    const meta = itemInfoMap?.[id];
+    const name = stripOfficialTags(meta?.name) || id;
+    const description = stripOfficialTags(meta?.description);
+    const usage = stripOfficialTags(meta?.usage);
+
+    items.push({
+      id,
+      name,
+      ...(count !== undefined ? { count } : {}),
+      ...(description ? { description } : {}),
+      ...(usage ? { usage } : {}),
+    });
+  }
+  return items;
+}
 
 export function normalizeSklandRogueDetail(
   topicId: string,
@@ -543,6 +776,7 @@ export function normalizeSklandRogueDetail(
   const history = rogueDetail?.history || {};
   const career = rogueDetail?.career || {};
   const clearInfo = career?.clearInfo || {};
+  const itemInfoMap: Record<string, any> = rogueDetail?.itemInfo || {};
 
   const maxDifficulty = Math.max(
     Number(history.modeGrade ?? 0),
@@ -558,29 +792,36 @@ export function normalizeSklandRogueDetail(
   );
   const maxLevel = Math.max(topicMeta?.maxLevel ?? 100, level);
 
-  const relicsUnlocked = Math.max(
-    Number(career.relic ?? 0),
-    Number(fallbackStub?.relicsUnlocked ?? 0)
+  // Prefer player/info rec.relicCnt when > 0 because career.relic is 0 in newer topics (rogue_5/6)
+  const stubRelics = Number(fallbackStub?.relicsUnlocked ?? 0);
+  const relicsUnlocked = stubRelics > 0 ? stubRelics : Number(career.relic ?? 0);
+  const relicsTotal = Math.max(
+    topicMeta?.relicTotal ?? 0,
+    Number(fallbackStub?.relicsTotal ?? 0)
   );
-  const hasKnownTotal = Boolean(
-    fallbackStub?.relicsTotalKnown &&
-      fallbackStub?.relicsTotal &&
-      fallbackStub.relicsTotal >= relicsUnlocked
-  );
-  const relicsTotal = hasKnownTotal
-    ? Number(fallbackStub?.relicsTotal)
-    : Math.max(relicsUnlocked, 0);
+  const hasKnownTotal = relicsTotal > 0 && relicsTotal >= relicsUnlocked;
 
-  const investedOriginium = Math.max(
-    Number(career.invest ?? 0),
-    Number(fallbackStub?.investedOriginium ?? 0)
+  // Prefer player/info bank.current/record when > 0 because career.invest is 0 in newer topics
+  const stubInvest = Number(fallbackStub?.investedOriginium ?? 0);
+  const investedOriginium = stubInvest > 0 ? stubInvest : Number(career.invest ?? 0);
+  const investedRecord = Math.max(
+    Number(fallbackStub?.investedRecord ?? 0),
+    investedOriginium
   );
+
+  // Build favorite ID lookup from history.favourRecords
+  const rawRecList: any[] = Array.isArray(history.records) ? history.records : [];
+  const rawFavList: any[] = Array.isArray(history.favourRecords)
+    ? history.favourRecords
+    : [];
+  const favIdSet = new Set<string>();
+  rawFavList.forEach((r, idx) => {
+    const id = String(r?.id || `${r?.endTs || r?.startTs || `fav_${idx}`}`);
+    favIdSet.add(id);
+  });
 
   // Merge records & favourRecords deduplicated by id
-  const rawRecs: any[] = [
-    ...(Array.isArray(history.records) ? history.records : []),
-    ...(Array.isArray(history.favourRecords) ? history.favourRecords : []),
-  ];
+  const rawRecs: any[] = [...rawRecList, ...rawFavList];
   const recMap = new Map<string, any>();
   rawRecs.forEach((r, idx) => {
     const id = String(r?.id || `${r?.endTs || r?.startTs || idx}`);
@@ -588,7 +829,7 @@ export function normalizeSklandRogueDetail(
   });
   const allRecs = Array.from(recMap.values());
 
-  // Aggregate squads
+  // Aggregate squads and cleared endings from runs
   const squadMap = new Map<string, RogueSquadProgress>();
   const endingClearCountMap = new Map<string, number>();
 
@@ -604,80 +845,175 @@ export function normalizeSklandRogueDetail(
       prev.cleared = prev.cleared || cleared;
     }
 
-    const endName = stripOfficialTags(r?.endingText);
-    if (cleared && endName) {
-      endingClearCountMap.set(endName, (endingClearCountMap.get(endName) || 0) + 1);
+    if (cleared) {
+      const parsedEnd = parseRogueEndingText(r?.endingText);
+      const cand = parsedEnd.extractedEndingName
+        ? resolveRogueEndingName(topicId, parsedEnd.extractedEndingName)
+        : '';
+      if (cand) {
+        endingClearCountMap.set(cand, (endingClearCountMap.get(cand) || 0) + 1);
+      }
     }
   }
 
-  // Build endings from clearInfo.endings + cleared records + endingSanList
-  const endings: RogueEnding[] = [];
-  const seenEndings = new Set<string>();
+  // Build endings from ROGUE_ENDINGS_META + clearInfo + endingGrade + endingSanList + cleared runs
+  const unlockedKeys = new Set<string>();
+  const gradeByKey = new Map<string, number>();
+
+  if (clearInfo?.endingGrade && typeof clearInfo.endingGrade === 'object') {
+    for (const [rawId, rawGrade] of Object.entries(clearInfo.endingGrade)) {
+      const cleanId = stripOfficialTags(rawId);
+      const resolved = resolveRogueEndingName(topicId, cleanId);
+      const g = Number(rawGrade);
+      if (cleanId) {
+        unlockedKeys.add(cleanId);
+        if (!Number.isNaN(g)) gradeByKey.set(cleanId, g);
+      }
+      if (resolved) {
+        unlockedKeys.add(resolved);
+        if (!Number.isNaN(g)) gradeByKey.set(resolved, g);
+      }
+    }
+  }
 
   const clearEndingsList: string[] = Array.isArray(clearInfo.endings)
     ? clearInfo.endings.map((e: any) => stripOfficialTags(e)).filter(Boolean)
     : [];
+  const sanEndingKeys: string[] =
+    career?.endingSanList && typeof career.endingSanList === 'object'
+      ? Object.keys(career.endingSanList).map((k) => stripOfficialTags(k)).filter(Boolean)
+      : [];
 
-  clearEndingsList.forEach((endName, idx) => {
-    if (seenEndings.has(endName)) return;
-    seenEndings.add(endName);
-    endings.push({
-      id: `${topicId}_end_${idx + 1}`,
-      name: endName,
-      code: `END-${idx + 1}`,
-      unlocked: true,
-      clearCount: Math.max(1, endingClearCountMap.get(endName) || 1),
-    });
-  });
+  for (const rawKey of [...clearEndingsList, ...sanEndingKeys]) {
+    unlockedKeys.add(rawKey);
+    const resolved = resolveRogueEndingName(topicId, rawKey);
+    if (resolved) unlockedKeys.add(resolved);
+  }
+  for (const endName of endingClearCountMap.keys()) {
+    unlockedKeys.add(endName);
+  }
 
-  for (const [endName, cnt] of endingClearCountMap.entries()) {
-    if (seenEndings.has(endName)) continue;
-    seenEndings.add(endName);
+  const endings: RogueEnding[] = [];
+  const seenNames = new Set<string>();
+  const knownList = ROGUE_ENDINGS_META[topicId] || [];
+
+  for (const meta of knownList) {
+    const keysToCheck = [meta.id, meta.name, ...(meta.aliases || [])];
+    const unlocked = keysToCheck.some((k) => unlockedKeys.has(k));
+    let maxGrade: number | undefined;
+    for (const k of keysToCheck) {
+      if (gradeByKey.has(k)) {
+        maxGrade = gradeByKey.get(k);
+        break;
+      }
+    }
+    const cnt = endingClearCountMap.get(meta.name) || (unlocked ? 1 : 0);
+    seenNames.add(meta.name);
     endings.push({
-      id: `${topicId}_end_${endings.length + 1}`,
-      name: endName,
-      code: `END-${endings.length + 1}`,
-      unlocked: true,
+      id: meta.id,
+      name: meta.name,
+      code: meta.code,
+      unlocked,
       clearCount: cnt,
+      ...(maxGrade !== undefined ? { maxGrade } : {}),
     });
   }
 
-  if (endings.length === 0 && career?.endingSanList && typeof career.endingSanList === 'object') {
-    Object.keys(career.endingSanList).forEach((key, idx) => {
-      const cleanName = stripOfficialTags(key);
-      if (!cleanName || seenEndings.has(cleanName)) return;
-      seenEndings.add(cleanName);
-      endings.push({
-        id: `${topicId}_san_${idx + 1}`,
-        name: cleanName,
-        code: `END-${idx + 1}`,
-        unlocked: true,
-        clearCount: 1,
-      });
+  // Append any extra non-standard unlocked endings reported by API so nothing is lost
+  for (const rawKey of [...clearEndingsList, ...endingClearCountMap.keys(), ...sanEndingKeys]) {
+    const resolved = resolveRogueEndingName(topicId, rawKey);
+    if (!resolved || seenNames.has(resolved)) continue;
+    seenNames.add(resolved);
+    const maxGrade = gradeByKey.get(rawKey) ?? gradeByKey.get(resolved);
+    endings.push({
+      id: rawKey,
+      name: resolved,
+      code: `END-${endings.length + 1}`,
+      unlocked: true,
+      clearCount: Math.max(1, endingClearCountMap.get(resolved) || 1),
+      ...(maxGrade !== undefined ? { maxGrade } : {}),
     });
   }
 
   const recentRuns: RogueRecentRun[] = allRecs
     .map((r, idx): RogueRecentRun => {
+      const runId = String(r?.id || `${topicId}_run_${idx}`);
+      const rawStart = Number(r?.startTs || 0);
       const rawEnd = Number(r?.endTs || r?.startTs || 0);
       const tsMs = rawEnd > 0 ? (rawEnd < 1e12 ? rawEnd * 1000 : rawEnd) : Date.now();
+      const startTsMs =
+        rawStart > 0 ? (rawStart < 1e12 ? rawStart * 1000 : rawStart) : undefined;
+      const durationSec =
+        rawStart > 0 && rawEnd >= rawStart ? Math.round(rawEnd - rawStart) : undefined;
+
+      const cleared = Number(r?.success) === 1;
+      const parsedEnd = parseRogueEndingText(r?.endingText);
+      const rawLastStage = stripOfficialTags(r?.lastStage);
+      const endingName = cleared
+        ? parsedEnd.extractedEndingName || rawLastStage || '行动胜利'
+        : rawLastStage || parsedEnd.extractedEndingName || '探索中断';
+
+      const initChars = Array.isArray(r?.initChars)
+        ? r.initChars.map(mapSklandRogueChar)
+        : [];
+      const troopChars = Array.isArray(r?.troopChars)
+        ? r.troopChars.map(mapSklandRogueChar)
+        : [];
+      const lastChars = Array.isArray(r?.lastChars)
+        ? r.lastChars.map(mapSklandRogueChar)
+        : [];
+      const tags: RogueRunTag[] = Array.isArray(r?.tagList)
+        ? r.tagList
+            .map((t: any) => ({
+              name: stripOfficialTags(t?.name),
+              description: stripOfficialTags(t?.description) || undefined,
+              icon: typeof t?.icon === 'string' ? t.icon : undefined,
+            }))
+            .filter((t: RogueRunTag) => Boolean(t.name))
+        : [];
+
+      const rawRelics = Array.isArray(r?.gainRelicList) ? r.gainRelicList : [];
+      const rawTotems = Array.isArray(r?.totemList) ? r.totemList : [];
+      const relics = mapSklandRogueItems(rawRelics, itemInfoMap);
+      const totems = mapSklandRogueItems(rawTotems, itemInfoMap);
+
       return {
-        runId: String(r?.id || `${topicId}_run_${idx}`),
+        runId,
         ts: tsMs,
+        ...(startTsMs !== undefined ? { startTs: startTsMs } : {}),
+        ...(durationSec !== undefined ? { durationSec } : {}),
         difficulty: Number(r?.modeGrade ?? 0),
+        modeLabel: stripOfficialTags(r?.mode) || bestModeLabel || undefined,
+        ...(rawLastStage ? { lastStage: rawLastStage } : {}),
+        isFavorite: Boolean(r?.isCollect) || favIdSet.has(runId),
         squadName: stripOfficialTags(r?.band?.name) || '未知分队',
-        endingName:
-          stripOfficialTags(r?.endingText) ||
-          stripOfficialTags(r?.lastStage) ||
-          '探索实录',
-        cleared: Number(r?.success) === 1,
+        endingName,
+        cleared,
         score: Number(r?.score ?? 0),
-        relicsCount: Number(
-          r?.cntGainRelicItem ?? (Array.isArray(r?.gainRelicList) ? r.gainRelicList.length : 0)
-        ),
+        relicsCount: Math.max(Number(r?.cntGainRelicItem ?? 0), relics.length),
+        journeySegments: parsedEnd.segments,
+        initChars,
+        troopChars,
+        lastChars,
+        tags,
+        stats: {
+          crossedZone: Number(r?.cntCrossedZone ?? 0),
+          arrivedNode: Number(r?.cntArrivedNode ?? 0),
+          battleNormal: Number(r?.cntBattleNormal ?? 0),
+          battleElite: Number(r?.cntBattleElite ?? 0),
+          battleBoss: Number(r?.cntBattleBoss ?? 0),
+          gainRelicItem: Number(r?.cntGainRelicItem ?? 0),
+          recruitUpgrade: Number(r?.cntRecruitUpgrade ?? 0),
+        },
+        relics,
+        totems,
       };
     })
     .sort((a, b) => b.ts - a.ts);
+
+  const favoriteChars: RogueRunOperator[] = Array.isArray(history.chars)
+    ? history.chars.map(mapSklandRogueChar)
+    : [];
 
   const totalRuns = Math.max(
     Number(career.game ?? 0),
@@ -689,6 +1025,15 @@ export function normalizeSklandRogueDetail(
     Number(fallbackStub?.clearedRuns ?? 0)
   );
 
+  const medalCurrent =
+    history.medal?.current !== undefined
+      ? Number(history.medal.current)
+      : fallbackStub?.medalCurrent;
+  const medalTotal =
+    history.medal?.count !== undefined
+      ? Number(history.medal.count)
+      : fallbackStub?.medalTotal;
+
   return {
     themeId: topicId,
     themeName,
@@ -697,19 +1042,20 @@ export function normalizeSklandRogueDetail(
     difficultyCap,
     bestModeLabel: bestModeLabel || undefined,
     highestScore: Number(history.score ?? 0) || undefined,
-    medalCurrent:
-      history.medal?.current !== undefined ? Number(history.medal.current) : undefined,
-    medalTotal:
-      history.medal?.count !== undefined ? Number(history.medal.count) : undefined,
+    medalCurrent,
+    medalTotal,
     totalRuns,
     clearedRuns,
     endings,
     relicsUnlocked,
-    relicsTotal,
+    relicsTotal: relicsTotal > 0 ? relicsTotal : relicsUnlocked,
     relicsTotalKnown: hasKnownTotal,
     level,
     maxLevel,
     investedOriginium,
+    investedRecord,
+    favoriteChars,
+    totemLabel: topicMeta?.totemLabel || '专属物品',
     squads: Array.from(squadMap.values()).sort(
       (a, b) => b.maxDifficulty - a.maxDifficulty
     ),
@@ -717,23 +1063,28 @@ export function normalizeSklandRogueDetail(
   };
 }
 
-export function parseSklandRogue(rogueRaw: any): RogueThemeData[] {
+export function parseSklandRogue(
+  rogueRaw: any,
+  externalInfoMap?: Record<string, any>
+): RogueThemeData[] {
   if (!rogueRaw) return [];
   let records: any[] = [];
   if (Array.isArray(rogueRaw.records)) {
     records = rogueRaw.records;
   } else if (rogueRaw.themes && typeof rogueRaw.themes === 'object') {
     records = Object.entries(rogueRaw.themes).map(([id, val]: [string, any]) => ({
-      topicId: id,
+      rogueId: id,
       ...(val || {}),
     }));
   }
 
-  const rogueInfoMap = rogueRaw.rogueInfoMap || {};
+  const rogueInfoMap = externalInfoMap || rogueRaw.rogueInfoMap || {};
   const globalBank = rogueRaw.bank || {};
 
   return records.map((rec: any, idx: number): RogueThemeData => {
-    const topicId = String(rec.topicId || rec.theme || rec.id || `rogue_${idx}`);
+    const topicId = String(
+      rec.rogueId || rec.topicId || rec.theme || rec.id || `rogue_${idx}`
+    );
     const knownMeta = ROGUE_THEME_META[topicId];
     const meta = rogueInfoMap[topicId] || {};
     const bank = rec.bank || globalBank || {};
@@ -741,10 +1092,22 @@ export function parseSklandRogue(rogueRaw: any): RogueThemeData[] {
     const endingsRaw = Array.isArray(rec.endings) ? rec.endings : [];
 
     const relicsUnlocked = Number(
-      rec.relics?.current ?? rec.relicCount ?? rec.relicCnt ?? 0
+      rec.relicCnt ?? rec.relics?.current ?? rec.relicCount ?? 0
     );
-    const rawRelicsTotal = Number(rec.relics?.total ?? meta.relicTotal ?? 0);
-    const hasKnownTotal = rawRelicsTotal >= relicsUnlocked && rawRelicsTotal > 0;
+    const relicsTotal = Number(
+      rec.relics?.total ?? meta.relicTotal ?? knownMeta?.relicTotal ?? 0
+    );
+    const hasKnownTotal = relicsTotal >= relicsUnlocked && relicsTotal > 0;
+
+    const bankCurrent = Number(bank.current ?? 0);
+    const bankRecord = Number(bank.record ?? 0);
+    const investedOriginium =
+      bankCurrent > 0
+        ? bankCurrent
+        : bankRecord > 0
+        ? bankRecord
+        : Number(bank.invest ?? 0);
+    const investedRecord = Math.max(bankRecord, bankCurrent);
 
     const maxDifficulty = Number(
       rec.maxDifficulty ?? rec.clearDifficulty ?? rec.maxLevel ?? 0
@@ -753,7 +1116,12 @@ export function parseSklandRogue(rogueRaw: any): RogueThemeData[] {
       Number(meta.maxDifficulty ?? knownMeta?.cap ?? 15),
       maxDifficulty
     );
-    const level = Number(rec.level ?? rec.buffLevel ?? medal.level ?? 0);
+    const level = Number(rec.bpLevel ?? rec.level ?? rec.buffLevel ?? medal.level ?? 0);
+    const clearedRuns = Number(rec.clearTime ?? rec.clearedRuns ?? rec.clearCount ?? 0);
+    const medalCurrent =
+      medal.current !== undefined ? Number(medal.current) : undefined;
+    const rawMedalTotal = medal.total ?? medal.count;
+    const medalTotal = rawMedalTotal !== undefined ? Number(rawMedalTotal) : undefined;
 
     return {
       themeId: topicId,
@@ -764,21 +1132,28 @@ export function parseSklandRogue(rogueRaw: any): RogueThemeData[] {
       codeName: meta.codeName || knownMeta?.codeName || topicId.toUpperCase(),
       maxDifficulty,
       difficultyCap,
-      totalRuns: Number(rec.totalRuns ?? rec.count ?? 0),
-      clearedRuns: Number(rec.clearedRuns ?? rec.clearCount ?? 0),
+      medalCurrent,
+      medalTotal,
+      totalRuns: Math.max(Number(rec.totalRuns ?? rec.count ?? 0), clearedRuns),
+      clearedRuns,
       endings: endingsRaw.map((e: any, eIdx: number) => ({
         id: String(e.id || `end_${eIdx}`),
-        name: stripOfficialTags(e.name) || `结局 ${eIdx + 1}`,
+        name: resolveRogueEndingName(topicId, e.name || e.id) || `结局 ${eIdx + 1}`,
         code: String(e.code || `END-${eIdx + 1}`),
         unlocked: Boolean(e.unlocked ?? Number(e.clearCount || 0) > 0),
         clearCount: Number(e.clearCount || 0),
       })),
       relicsUnlocked,
-      relicsTotal: hasKnownTotal ? rawRelicsTotal : relicsUnlocked,
+      relicsTotal: hasKnownTotal ? relicsTotal : relicsUnlocked,
       relicsTotalKnown: hasKnownTotal,
       level,
-      maxLevel: Math.max(Number(rec.maxLevel ?? meta.maxLevel ?? knownMeta?.maxLevel ?? 100), level),
-      investedOriginium: Number(bank.record ?? bank.current ?? bank.invest ?? 0),
+      maxLevel: Math.max(
+        Number(rec.maxLevel ?? meta.maxLevel ?? knownMeta?.maxLevel ?? 100),
+        level
+      ),
+      investedOriginium,
+      investedRecord,
+      totemLabel: knownMeta?.totemLabel || '专属物品',
       squads: Array.isArray(rec.squads)
         ? rec.squads.map((s: any) => ({
             squadName: String(s.name || s.squadName || '未知分队'),
