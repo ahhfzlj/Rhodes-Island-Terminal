@@ -20,9 +20,11 @@ import {
   mapAkCategoryCode,
   normalizeGarrisonPayload,
   normalizeSklandGarrisonResponse,
+  normalizeSklandRogueDetail,
   parseImportedAkGachaJson,
   parseImportedEndfieldGachaJson,
   parseSklandRogue,
+  sortRogueThemesDesc,
 } from '../utils/parsers.js';
 import { generateNativeSklandHeaders } from './nativeSigner.js';
 
@@ -699,9 +701,80 @@ export const nativeHypergryph = {
       registerTs: Number(status.registerTs || 0) * 1000,
     };
 
-    const rogue = parseSklandRogue(data?.rogue || data?.rogueInfo);
+    const stubRogue = parseSklandRogue(data?.rogue || data?.rogueInfo);
+    let rogue = stubRogue;
+
+    try {
+      let userId = '';
+      try {
+        const teen = await sklandGet<any>(
+          '/api/v1/user/teenager',
+          '',
+          akAuth.sklandCred,
+          akAuth.sklandSignToken,
+          akAuth.dId || ''
+        );
+        if (teen?.teenager?.userId) userId = String(teen.teenager.userId);
+      } catch {
+        const userRes = await sklandGet<any>(
+          '/api/v1/user',
+          '',
+          akAuth.sklandCred,
+          akAuth.sklandSignToken,
+          akAuth.dId || ''
+        );
+        userId = String(userRes?.user?.id || userRes?.id || '');
+      }
+
+      if (userId) {
+        const baseDetail = await sklandGet<any>(
+          '/api/v1/game/arknights/rogue',
+          `uid=${encodeURIComponent(uid)}&targetUserId=${encodeURIComponent(userId)}&topicId=`,
+          akAuth.sklandCred,
+          akAuth.sklandSignToken,
+          akAuth.dId || ''
+        );
+
+        const topics: Array<{ id: string; isSelected?: boolean; name?: string }> =
+          Array.isArray(baseDetail?.topics) ? baseDetail.topics : [];
+
+        if (topics.length > 0) {
+          const selectedTopicId =
+            topics.find((t) => t.isSelected)?.id || topics[0]?.id || '';
+          const stubMap = new Map(stubRogue.map((s) => [s.themeId, s]));
+
+          const detailed = await Promise.all(
+            topics.map(async (topic) => {
+              const stub = stubMap.get(topic.id);
+              if (topic.id === selectedTopicId) {
+                return normalizeSklandRogueDetail(topic.id, baseDetail, stub);
+              }
+              try {
+                const detail = await sklandGet<any>(
+                  '/api/v1/game/arknights/rogue',
+                  `uid=${encodeURIComponent(uid)}&targetUserId=${encodeURIComponent(
+                    userId
+                  )}&topicId=${encodeURIComponent(topic.id)}`,
+                  akAuth.sklandCred!,
+                  akAuth.sklandSignToken!,
+                  akAuth.dId || ''
+                );
+                return normalizeSklandRogueDetail(topic.id, detail, stub);
+              } catch {
+                return stub || normalizeSklandRogueDetail(topic.id, { topics }, undefined);
+              }
+            })
+          );
+          if (detailed.length > 0) rogue = detailed;
+        }
+      }
+    } catch {
+      // Keep fallback stubRogue
+    }
+
+    const sortedRogue = sortRogueThemesDesc(rogue);
     store.akProfile = profile;
-    if (rogue.length > 0) store.akRogue = rogue;
+    if (sortedRogue.length > 0) store.akRogue = sortedRogue;
     store.lastSync.akProfile = Date.now();
     saveStore(store);
     return { profile: store.akProfile, rogue: store.akRogue, lastSync: store.lastSync };

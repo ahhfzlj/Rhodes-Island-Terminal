@@ -10,7 +10,10 @@ import {
 } from '../src/utils/analytics.js';
 import { generateSklandHeaders } from '../server/hypergryph/signer.js';
 import { generateNativeSklandHeaders } from '../src/services/nativeSigner.js';
-import { normalizeSklandGarrisonResponse } from '../src/utils/parsers.js';
+import {
+  normalizeSklandGarrisonResponse,
+  normalizeSklandRogueDetail,
+} from '../src/utils/parsers.js';
 import type { AkGachaRecord, EndfieldGachaRecord } from '../src/types/index.js';
 
 test('generateSklandHeaders computes deterministic HMAC-SHA256 + MD5 signature', () => {
@@ -300,7 +303,7 @@ test('normalizeSklandGarrisonResponse parses official Skland garrison info and r
 
   const infoData = {
     career: {
-      modeDifficulty: 'ABYSS',
+      mode: '绝境模拟',
       totalSingleBattleCnt: 10,
       totalSingleBattleWinCnt: 7,
       totalMultiBattleCnt: 2,
@@ -315,15 +318,15 @@ test('normalizeSklandGarrisonResponse parses official Skland garrison info and r
           completeState: 1,
           trophyAfter: 120,
           bandId: 'band_1',
-          modeDifficulty: 'ABYSS',
+          mode: '绝境模拟',
           passRound: 10,
           gameStartTs: 1760000000,
           gameEndTs: 1760001000,
           versionId: 'v2',
           activityId: 'act2autochess',
           bondInfo: [
-            { bondId: 'bond_laterano', activate: 1, layer: 2 },
-            { bondId: 'bond_precise', activate: 1, layer: 1 },
+            { bondId: 'bond_laterano', activate: 1, layer: 4 },
+            { bondId: 'bond_precise', activate: 1, layer: 2 },
           ],
           acBossInfo: [
             { bossId: 'boss_1', isHidden: false, isKilled: true },
@@ -349,15 +352,152 @@ test('normalizeSklandGarrisonResponse parses official Skland garrison info and r
   assert.equal(season.winRate, 75);
   assert.equal(season.trophies, 64);
   assert.equal(season.favoriteStrategy, '高台狙术协同');
-  assert.equal(season.highestDiff, 15);
   assert.equal(season.normalBossKills, 1);
   assert.equal(season.hiddenBossKills, 1);
   assert.equal(season.matches.length, 1);
+  assert.equal(season.matches[0].modeLabel, '绝境模拟');
   assert.equal(season.matches[0].durationSec, 1000);
-  assert.deepEqual(season.matches[0].covenants, ['拉特兰', '精准']);
+  assert.deepEqual(season.matches[0].covenants, ['拉特兰 4层', '精准 2层']);
+  assert.deepEqual(season.matches[0].covenantDetails, [
+    { name: '拉特兰', layer: 4, activated: true },
+    { name: '精准', layer: 2, activated: true },
+  ]);
   assert.deepEqual(season.matches[0].normalBossKills, ['假想敌：胄']);
   assert.deepEqual(season.matches[0].hiddenBossKills, ['阿利斯泰尔，帝国余晖']);
   assert.equal(season.matches[0].squad[0].name, '维什戴尔');
   assert.deepEqual(season.matches[0].squad[0].equipments, ['重型攻城弹匣']);
   assert.equal(season.covenantStats.length, 2);
+});
+
+test('normalizeSklandGarrisonResponse preserves official 终极模拟 mode label', () => {
+  const season = normalizeSklandGarrisonResponse(
+    {
+      career: {
+        totalSingleBattleCnt: 5,
+        totalSingleBattleWinCnt: 4,
+        totalMultiBattleCnt: 0,
+        totalMultiBattleWinCnt: 0,
+        totalTrophyCnt: 300,
+        mode: '终极模拟',
+      },
+      history: {
+        records: [
+          {
+            id: 'rec_final_1',
+            completeState: 1,
+            trophyAfter: 300,
+            bandId: 'band_1',
+            mode: '终极模拟',
+            passRound: 12,
+            gameStartTs: 1760000000,
+            gameEndTs: 1760001800,
+            versionId: 'v3',
+            activityId: 'act3autochess',
+            bondInfo: [{ bondId: 'bond_abyss', activate: 1, layer: 6 }],
+            acBossInfo: [],
+            chessSquad: [],
+          },
+        ],
+      },
+    },
+    {
+      resources: [
+        {
+          versionInfo: {
+            versionId: 'v3',
+            activityId: 'act3autochess',
+            seasonName: '卫戍协议：终极',
+          },
+          bondInfo: {
+            bond_abyss: { id: 'bond_abyss', name: '深海' },
+          },
+        },
+      ],
+    }
+  );
+
+  assert.equal(season.highestDiffLabel, '终极模拟');
+  assert.equal(season.matches[0].modeLabel, '终极模拟');
+  assert.deepEqual(season.matches[0].covenants, ['深海 6层']);
+});
+
+test('normalizeSklandRogueDetail parses real theme name, N18 difficulty, bpLevel, bank invest, endings, squads, and recentRuns', () => {
+  const theme = normalizeSklandRogueDetail('rogue_4', {
+    history: {
+      bpLevel: 145,
+      mode: '思维之裂 N18',
+      modeGrade: 18,
+      score: 2560,
+      medal: { current: 8, count: 10 },
+      records: [
+        {
+          id: 'run_1',
+          startTs: 1760000000,
+          endTs: 1760002000,
+          modeGrade: 18,
+          success: 1,
+          score: 2560,
+          cntGainRelicItem: 42,
+          band: { name: '高台分队' },
+          endingText: '终末新生',
+        },
+        {
+          id: 'run_2',
+          startTs: 1759990000,
+          endTs: 1759991200,
+          modeGrade: 15,
+          success: 0,
+          score: 1480,
+          gainRelicList: ['r1', 'r2', 'r3'],
+          band: { name: '点刺成面分队' },
+          lastStage: '第五层险境',
+        },
+      ],
+      favourRecords: [
+        {
+          id: 'run_1',
+          startTs: 1760000000,
+          endTs: 1760002000,
+          modeGrade: 18,
+          success: 1,
+          score: 2560,
+          cntGainRelicItem: 42,
+          band: { name: '高台分队' },
+          endingText: '终末新生',
+        },
+      ],
+    },
+    career: {
+      game: 42,
+      invest: 999,
+      relic: 214,
+      clearInfo: {
+        difficulty: '灵魂熔炉 N18',
+        endings: ['终末新生', '千面一语'],
+      },
+    },
+  });
+
+  assert.equal(theme.themeName, '萨卡兹的无终奇语');
+  assert.equal(theme.maxDifficulty, 18);
+  assert.equal(theme.difficultyCap, 18);
+  assert.equal(theme.bestModeLabel, '灵魂熔炉 N18');
+  assert.equal(theme.highestScore, 2560);
+  assert.equal(theme.medalCurrent, 8);
+  assert.equal(theme.medalTotal, 10);
+  assert.equal(theme.level, 145);
+  assert.equal(theme.investedOriginium, 999);
+  assert.equal(theme.relicsUnlocked, 214);
+  assert.equal(theme.relicsTotalKnown, false);
+  assert.equal(theme.totalRuns, 42);
+  assert.deepEqual(
+    theme.endings.map((e) => e.name),
+    ['终末新生', '千面一语']
+  );
+  assert.equal(theme.squads.length, 2);
+  assert.equal(theme.squads[0].squadName, '高台分队');
+  assert.equal(theme.squads[0].maxDifficulty, 18);
+  assert.equal(theme.recentRuns.length, 2);
+  assert.equal(theme.recentRuns[0].runId, 'run_1');
+  assert.equal(theme.recentRuns[1].relicsCount, 3);
 });

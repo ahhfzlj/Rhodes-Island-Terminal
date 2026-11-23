@@ -7,7 +7,9 @@ import type {
 import {
   normalizeGarrisonPayload,
   normalizeSklandGarrisonResponse,
+  normalizeSklandRogueDetail,
   parseSklandRogue,
+  sortRogueThemesDesc,
 } from '../../src/utils/parsers.js';
 import { generateSklandHeaders } from './signer.js';
 
@@ -128,8 +130,95 @@ export async function fetchArknightsPlayerInfo(
     registerTs: Number(status.registerTs || 0) * 1000,
   };
 
-  const rogue: RogueThemeData[] = parseSklandRogue(data?.rogue || data?.rogueInfo);
-  return { profile, rogue };
+  const stubRogue = parseSklandRogue(data?.rogue || data?.rogueInfo);
+  let rogue = stubRogue;
+
+  try {
+    const detailed = await fetchArknightsRogueThemes(
+      cred,
+      signToken,
+      uid,
+      dId,
+      stubRogue
+    );
+    if (detailed.length > 0) rogue = detailed;
+  } catch {
+    // Fall back cleanly to stubRogue from player/info
+  }
+
+  return { profile, rogue: sortRogueThemesDesc(rogue) };
+}
+
+async function fetchSklandUserId(
+  cred: string,
+  signToken: string,
+  dId: string
+): Promise<string> {
+  try {
+    const teen = await sklandGet<any>('/api/v1/user/teenager', '', cred, signToken, dId);
+    if (teen?.teenager?.userId) return String(teen.teenager.userId);
+  } catch {
+    // Fallback below
+  }
+  const userRes = await sklandGet<any>('/api/v1/user', '', cred, signToken, dId);
+  const id = userRes?.user?.id || userRes?.id || '';
+  if (!id) throw new Error('未能获取森空岛 userId');
+  return String(id);
+}
+
+export async function fetchArknightsRogueThemes(
+  cred: string,
+  signToken: string,
+  uid: string,
+  dId: string = '',
+  fallbackStubs: RogueThemeData[] = []
+): Promise<RogueThemeData[]> {
+  const userId = await fetchSklandUserId(cred, signToken, dId);
+  const baseDetail = await sklandGet<any>(
+    '/api/v1/game/arknights/rogue',
+    `uid=${encodeURIComponent(uid)}&targetUserId=${encodeURIComponent(userId)}&topicId=`,
+    cred,
+    signToken,
+    dId
+  );
+
+  const topics: Array<{ id: string; isSelected?: boolean; name?: string }> = Array.isArray(
+    baseDetail?.topics
+  )
+    ? baseDetail.topics
+    : [];
+
+  if (topics.length === 0) return fallbackStubs;
+
+  const selectedTopicId =
+    topics.find((t) => t.isSelected)?.id || topics[0]?.id || '';
+
+  const stubMap = new Map(fallbackStubs.map((s) => [s.themeId, s]));
+
+  const results = await Promise.all(
+    topics.map(async (topic) => {
+      const stub = stubMap.get(topic.id);
+      if (topic.id === selectedTopicId) {
+        return normalizeSklandRogueDetail(topic.id, baseDetail, stub);
+      }
+      try {
+        const detail = await sklandGet<any>(
+          '/api/v1/game/arknights/rogue',
+          `uid=${encodeURIComponent(uid)}&targetUserId=${encodeURIComponent(
+            userId
+          )}&topicId=${encodeURIComponent(topic.id)}`,
+          cred,
+          signToken,
+          dId
+        );
+        return normalizeSklandRogueDetail(topic.id, detail, stub);
+      } catch {
+        return stub || normalizeSklandRogueDetail(topic.id, { topics }, undefined);
+      }
+    })
+  );
+
+  return sortRogueThemesDesc(results);
 }
 
 export async function fetchArknightsGarrison(

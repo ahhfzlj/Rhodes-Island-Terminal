@@ -152,8 +152,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     document.title =
       gameMode === 'arknights'
-        ? 'PRTS // 明日方舟战略终端'
-        : 'ENDFIELD // 终末地工业寻访终端';
+        ? '罗德岛终端 // 明日方舟'
+        : '罗德岛终端 // 终末地';
 
     if (Capacitor.isNativePlatform()) {
       syncNativeSystemChrome(gameMode);

@@ -1,14 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Bar,
-  BarChart,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
-import {
   Award,
   Clock,
   RefreshCw,
@@ -32,6 +23,7 @@ export const AkGarrisonPage: React.FC = () => {
   const { akGarrison, dataMode, setDataMode, syncCurrentGame, syncing, refreshAll, showToast } =
     useApp();
   const [selectedMatch, setSelectedMatch] = useState<GarrisonMatch | null>(null);
+  const [selectedCovName, setSelectedCovName] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState('');
   const [importing, setImporting] = useState(false);
@@ -52,6 +44,36 @@ export const AkGarrisonPage: React.FC = () => {
     } finally {
       setImporting(false);
     }
+  };
+
+  const renderCovenantChips = (match: GarrisonMatch) => {
+    if (match.covenantDetails && match.covenantDetails.length > 0) {
+      return match.covenantDetails.map((cov) => (
+        <span
+          key={`${cov.name}_${cov.layer}`}
+          className={`px-1.5 py-0.5 text-[10px] border inline-flex items-center gap-1 ${
+            cov.activated
+              ? 'bg-[#0A0C0F] border-[#22BBFF]/40 text-[#ECF0F5]'
+              : 'bg-[#0A0C0F] border-[#293240] text-[#7D899B]'
+          }`}
+        >
+          <span>{cov.name}</span>
+          {cov.layer > 0 && (
+            <span className="font-mono-tech text-[#22BBFF] font-bold">
+              {cov.layer}层
+            </span>
+          )}
+        </span>
+      ));
+    }
+    return match.covenants.map((cov) => (
+      <span
+        key={cov}
+        className="px-1.5 py-0.5 text-[10px] bg-[#0A0C0F] border border-[#293240] text-[#B4C0D0]"
+      >
+        {cov}
+      </span>
+    ));
   };
 
   return (
@@ -121,13 +143,11 @@ export const AkGarrisonPage: React.FC = () => {
             </div>
 
             <div className="bg-[#13171D] border border-[#293240] p-3.5 ak-chamfer-sm">
-              <div className="text-[11px] font-mono-tech text-[#7D899B]">MAX DIFF // 最高协议</div>
-              <div className="text-2xl font-black font-mono-tech text-[#FF9A2E] mt-1 tabular-nums">
-                N{akGarrison.highestDiff}
+              <div className="text-[11px] font-mono-tech text-[#7D899B]">MAX MODE // 最佳难度</div>
+              <div className="text-lg sm:text-xl font-black text-[#FF9A2E] mt-1.5 truncate">
+                {akGarrison.highestDiffLabel || '暂无记录'}
               </div>
-              <div className="text-[11px] text-[#7D899B] mt-0.5 truncate">
-                {akGarrison.highestDiffLabel}
-              </div>
+              <div className="text-[11px] text-[#7D899B] mt-1">官方战绩最高达成</div>
             </div>
 
             <div className="bg-[#13171D] border border-[#293240] p-3.5 ak-chamfer-sm">
@@ -155,59 +175,62 @@ export const AkGarrisonPage: React.FC = () => {
             </div>
           </section>
 
-          {/* Covenant Win-Rate Horizontal Chart */}
+          {/* All-Visible Covenant Win-Rate List */}
           {akGarrison.covenantStats.length > 0 && (
-            <section className="bg-[#13171D] border border-[#293240] p-4">
-              <div className="flex items-center justify-between mb-3">
+            <section className="bg-[#13171D] border border-[#293240] p-4 space-y-3 ak-chamfer-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                 <span className="text-xs font-mono-tech text-[#7D899B]">
-                  COVENANT WIN RATE // 盟约通关率统计 (%)
+                  COVENANT WIN RATE // 全部盟约通关率统计 ({akGarrison.covenantStats.length})
                 </span>
                 <span className="text-[11px] font-mono-tech text-[#22BBFF]">
-                  点击下方战绩可展开阵容详情
+                  点击行可高亮对比 · 点击下方战绩展开阵容
                 </span>
               </div>
-              <div className="h-52">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={akGarrison.covenantStats}
-                    layout="vertical"
-                    margin={{ top: 4, right: 24, left: 10, bottom: 4 }}
-                  >
-                    <XAxis
-                      type="number"
-                      domain={[0, 100]}
-                      stroke="#7D899B"
-                      tick={{ fill: '#7D899B', fontSize: 11 }}
-                      axisLine={{ stroke: '#293240' }}
-                    />
-                    <YAxis
-                      type="category"
-                      dataKey="name"
-                      width={64}
-                      stroke="#7D899B"
-                      tick={{ fill: '#ECF0F5', fontSize: 12 }}
-                      axisLine={{ stroke: '#293240' }}
-                    />
-                    <Tooltip
-                      cursor={{ fill: 'rgba(34, 187, 255, 0.08)' }}
-                      contentStyle={{
-                        backgroundColor: '#0A0C0F',
-                        borderColor: '#293240',
-                        color: '#ECF0F5',
-                        fontSize: '12px',
-                      }}
-                      formatter={(val: number) => [`${val}%`, '通关率']}
-                    />
-                    <Bar dataKey="winRate" radius={[0, 3, 3, 0]}>
-                      {akGarrison.covenantStats.map((entry, idx) => (
-                        <Cell
-                          key={entry.name}
-                          fill={idx === 0 ? '#FF9A2E' : idx < 3 ? '#22BBFF' : '#5EEAD4'}
+
+              <div className="space-y-2">
+                {akGarrison.covenantStats.map((cov, idx) => {
+                  const selected = selectedCovName === cov.name;
+                  const barColor =
+                    idx === 0
+                      ? 'bg-[#FF9A2E]'
+                      : idx < 3
+                      ? 'bg-[#22BBFF]'
+                      : 'bg-[#5EEAD4]';
+                  return (
+                    <button
+                      key={cov.name}
+                      type="button"
+                      onClick={() =>
+                        setSelectedCovName(selected ? null : cov.name)
+                      }
+                      className={`w-full text-left p-2 border transition-colors cursor-pointer ${
+                        selected
+                          ? 'bg-[#1A2029] border-[#22BBFF]'
+                          : 'bg-[#0A0C0F]/60 border-[#293240]/70 hover:border-[#394659]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2 text-xs mb-1.5">
+                        <span className="font-bold text-[#ECF0F5] truncate">
+                          {cov.name}
+                        </span>
+                        <div className="flex items-center gap-2.5 font-mono-tech shrink-0 tabular-nums">
+                          <span className="text-[#7D899B]">
+                            {cov.clearCount}/{cov.totalMatches} 胜
+                          </span>
+                          <span className="font-bold text-[#22BBFF] w-12 text-right">
+                            {cov.winRate}%
+                          </span>
+                        </div>
+                      </div>
+                      <div className="h-2 bg-[#13171D] border border-[#293240] overflow-hidden">
+                        <div
+                          className={`h-full ${barColor} transition-all duration-300`}
+                          style={{ width: `${Math.min(100, cov.winRate)}%` }}
                         />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </section>
           )}
@@ -254,14 +277,7 @@ export const AkGarrisonPage: React.FC = () => {
                   </div>
 
                   <div className="flex flex-wrap gap-1.5 mt-2">
-                    {match.covenants.map((cov) => (
-                      <span
-                        key={cov}
-                        className="px-1.5 py-0.5 text-[10px] bg-[#0A0C0F] border border-[#293240] text-[#B4C0D0]"
-                      >
-                        {cov}
-                      </span>
-                    ))}
+                    {renderCovenantChips(match)}
                     {match.hiddenBossKills.length > 0 && (
                       <span className="px-1.5 py-0.5 text-[10px] bg-[#FF6A2B]/15 border border-[#FF6A2B]/40 text-[#FF6A2B]">
                         隐秘BOSS击破
@@ -329,6 +345,16 @@ export const AkGarrisonPage: React.FC = () => {
                 <div className="text-sm font-bold font-mono-tech text-[#ECF0F5] mt-0.5 tabular-nums">
                   {formatDuration(selectedMatch.durationSec)}
                 </div>
+              </div>
+            </div>
+
+            {/* Covenant Layers */}
+            <div className="space-y-1.5">
+              <div className="text-xs font-mono-tech text-[#7D899B]">
+                盟约羁绊层数
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {renderCovenantChips(selectedMatch)}
               </div>
             </div>
 

@@ -13,7 +13,15 @@ export const AkRoguePage: React.FC = () => {
   const { akRogue, dataMode, syncCurrentGame, syncing } = useApp();
   const [selectedIdx, setSelectedIdx] = useState(0);
 
-  const currentTheme = akRogue[selectedIdx] || akRogue[0];
+  const safeIdx = Math.min(selectedIdx, Math.max(0, akRogue.length - 1));
+  const currentTheme = akRogue[safeIdx] || akRogue[0];
+
+  const showRelicRatio = Boolean(
+    currentTheme &&
+      currentTheme.relicsTotalKnown !== false &&
+      currentTheme.relicsTotal >= currentTheme.relicsUnlocked &&
+      currentTheme.relicsTotal > 0
+  );
 
   return (
     <div className="space-y-5">
@@ -49,7 +57,7 @@ export const AkRoguePage: React.FC = () => {
           {/* Horizontal Scrollable Theme Selector */}
           <div className="flex gap-2 overflow-x-auto pb-1">
             {akRogue.map((theme, idx) => {
-              const active = idx === selectedIdx;
+              const active = idx === safeIdx;
               return (
                 <button
                   key={theme.themeId}
@@ -88,8 +96,12 @@ export const AkRoguePage: React.FC = () => {
                       / N{currentTheme.difficultyCap}
                     </span>
                   </div>
-                  <div className="text-[11px] text-[#34D399] mt-1">
-                    通关 {currentTheme.clearedRuns} / {currentTheme.totalRuns} 次探索
+                  <div className="text-[11px] text-[#34D399] mt-1 truncate">
+                    {currentTheme.bestModeLabel
+                      ? `${currentTheme.bestModeLabel} · 探索 ${currentTheme.totalRuns} 次`
+                      : currentTheme.totalRuns > 0
+                      ? `通关 ${currentTheme.clearedRuns} / ${currentTheme.totalRuns} 次探索`
+                      : `已收录近期 ${currentTheme.recentRuns.length} 场战绩`}
                   </div>
                 </div>
 
@@ -126,17 +138,25 @@ export const AkRoguePage: React.FC = () => {
                     <span className="text-2xl font-black font-mono-tech text-[#ECF0F5] tabular-nums">
                       {currentTheme.relicsUnlocked}
                     </span>
-                    <span className="text-xs font-mono-tech text-[#7D899B]">
-                      / {currentTheme.relicsTotal}
-                    </span>
+                    {showRelicRatio && (
+                      <span className="text-xs font-mono-tech text-[#7D899B]">
+                        / {currentTheme.relicsTotal}
+                      </span>
+                    )}
                   </div>
                   <div className="text-[11px] text-[#F4C44E] mt-1 font-mono-tech">
-                    完成率{' '}
-                    {Math.round(
-                      (currentTheme.relicsUnlocked / Math.max(1, currentTheme.relicsTotal)) *
-                        100
-                    )}
-                    %
+                    {showRelicRatio
+                      ? `完成率 ${Math.min(
+                          100,
+                          Math.round(
+                            (currentTheme.relicsUnlocked /
+                              Math.max(1, currentTheme.relicsTotal)) *
+                              100
+                          )
+                        )}%`
+                      : currentTheme.highestScore
+                      ? `最高得分 ${currentTheme.highestScore}`
+                      : '森空岛已解锁藏品数'}
                   </div>
                 </div>
 
@@ -165,40 +185,46 @@ export const AkRoguePage: React.FC = () => {
                     {currentTheme.endings.length} UNLOCKED
                   </span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                  {currentTheme.endings.map((ending) => (
-                    <div
-                      key={ending.id}
-                      className={`p-3 border flex items-center justify-between gap-2 ${
-                        ending.unlocked
-                          ? 'bg-[#1A2029] border-[#22BBFF]/40'
-                          : 'bg-[#0A0C0F] border-[#293240] opacity-65'
-                      }`}
-                    >
-                      <div className="min-w-0">
-                        <div className="font-mono-tech text-[10px] text-[#22BBFF]">
-                          {ending.code}
+                {currentTheme.endings.length === 0 ? (
+                  <div className="py-4 text-xs text-[#7D899B]">
+                    当前主题暂未同步到结局达成数据，请点击右上角「同步肉鸽记录」刷新。
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                    {currentTheme.endings.map((ending) => (
+                      <div
+                        key={ending.id}
+                        className={`p-3 border flex items-center justify-between gap-2 ${
+                          ending.unlocked
+                            ? 'bg-[#1A2029] border-[#22BBFF]/40'
+                            : 'bg-[#0A0C0F] border-[#293240] opacity-65'
+                        }`}
+                      >
+                        <div className="min-w-0">
+                          <div className="font-mono-tech text-[10px] text-[#22BBFF]">
+                            {ending.code}
+                          </div>
+                          <div className="text-sm font-bold text-[#ECF0F5] truncate">
+                            {ending.name}
+                          </div>
                         </div>
-                        <div className="text-sm font-bold text-[#ECF0F5] truncate">
-                          {ending.name}
+                        <div className="shrink-0 text-right">
+                          {ending.unlocked ? (
+                            <div className="flex items-center gap-1 text-xs font-mono-tech text-[#34D399]">
+                              <CheckCircle2 className="w-4 h-4" />
+                              <span>×{ending.clearCount}</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1 text-xs font-mono-tech text-[#7D899B]">
+                              <Lock className="w-3.5 h-3.5" />
+                              <span>未达成</span>
+                            </div>
+                          )}
                         </div>
                       </div>
-                      <div className="shrink-0 text-right">
-                        {ending.unlocked ? (
-                          <div className="flex items-center gap-1 text-xs font-mono-tech text-[#34D399]">
-                            <CheckCircle2 className="w-4 h-4" />
-                            <span>×{ending.clearCount}</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1 text-xs font-mono-tech text-[#7D899B]">
-                            <Lock className="w-3.5 h-3.5" />
-                            <span>未达成</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </section>
 
               {/* Squad Progress Grid */}

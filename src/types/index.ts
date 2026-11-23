@@ -50,14 +50,22 @@ export interface GarrisonOperator {
   equipments?: string[];
 }
 
+export interface GarrisonCovenantDetail {
+  name: string;
+  layer: number;
+  activated: boolean;
+}
+
 export interface GarrisonMatch {
   matchId: string;
   ts: number;
   difficulty: number;
   difficultyLabel: string;
+  modeLabel?: string;
   cleared: boolean;
   strategyName: string;
   covenants: string[];
+  covenantDetails?: GarrisonCovenantDetail[];
   durationSec: number;
   score: number;
   normalBossKills: string[];
@@ -121,11 +129,16 @@ export interface RogueThemeData {
   codeName: string;
   maxDifficulty: number;
   difficultyCap: number;
+  bestModeLabel?: string;
+  highestScore?: number;
+  medalCurrent?: number;
+  medalTotal?: number;
   totalRuns: number;
   clearedRuns: number;
   endings: RogueEnding[];
   relicsUnlocked: number;
   relicsTotal: number;
+  relicsTotalKnown?: boolean;
   level: number;
   maxLevel: number;
   investedOriginium: number;

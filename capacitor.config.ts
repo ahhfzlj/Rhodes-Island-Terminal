@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.arknight.endfield.terminal',
-  appName: '方舟终末地终端',
+  appName: '罗德岛终端',
   webDir: 'dist',
   plugins: {
     CapacitorHttp: {
