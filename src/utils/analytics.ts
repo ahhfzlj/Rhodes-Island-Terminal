@@ -1,4 +1,11 @@
 import type {
+  AkBannerFiveStar,
+  AkBannerGroup,
+  AkBannerSixStar,
+  AkCategorySummary,
+  AkGachaAchievement,
+  AkGachaAnalysis,
+  AkGachaCategoryGroup,
   AkGachaRecord,
   AkGachaStats,
   AkSixStarTimelineItem,
@@ -143,6 +150,392 @@ export function computeArknightsGachaStats(
     currentSixChance,
     luckRating,
     sixStarTimeline: timelineAsc.reverse(),
+  };
+}
+
+export function normalizeAkCategoryGroup(category: string): AkGachaCategoryGroup {
+  const low = String(category || '').toLowerCase();
+  if (
+    low === 'limited' ||
+    low === 'collab' ||
+    low.includes('限定') ||
+    low.includes('庆典') ||
+    low.includes('联动')
+  ) {
+    return 'limited';
+  }
+  if (low === 'classic' || low.includes('中坚')) {
+    return 'classic';
+  }
+  return 'normal';
+}
+
+function calcAkSoftPity(currentPity: number): {
+  currentPity: number;
+  softPityBonus: number;
+  currentSixChance: number;
+} {
+  const softPityBonus = currentPity > 50 ? Math.min(98, (currentPity - 50) * 2) : 0;
+  const currentSixChance = Math.min(100, 2 + softPityBonus);
+  return { currentPity, softPityBonus, currentSixChance };
+}
+
+interface BannerSessionBuilder {
+  bannerKey: string;
+  poolName: string;
+  categoryGroup: AkGachaCategoryGroup;
+  rawCategory: string;
+  startTs: number;
+  endTs: number;
+  totalPulls: number;
+  sixStars: AkBannerSixStar[];
+  fiveStars: AkBannerFiveStar[];
+  fiveCount: number;
+  fourCount: number;
+  threeCount: number;
+  limitedPity: number;
+  trailingPity: number;
+  records: AkGachaRecord[];
+}
+
+export function computeArknightsGachaAnalysis(records: AkGachaRecord[]): AkGachaAnalysis {
+  const makeEmptyCategory = (
+    group: AkGachaCategoryGroup,
+    label: string
+  ): AkCategorySummary => ({
+    group,
+    label,
+    totalPulls: 0,
+    sixCount: 0,
+    fiveCount: 0,
+    avgPullsPerSix: 0,
+    ...calcAkSoftPity(0),
+  });
+
+  if (records.length === 0) {
+    return {
+      totalPulls: 0,
+      totalOrundum: 0,
+      sixCount: 0,
+      fiveCount: 0,
+      fourCount: 0,
+      threeCount: 0,
+      sixRate: 0,
+      avgPullsPerSix: 0,
+      luckRating: 'B',
+      title: '蓄势待发',
+      dateRange: null,
+      categories: {
+        limited: makeEmptyCategory('limited', '限定'),
+        normal: makeEmptyCategory('normal', '标准'),
+        classic: makeEmptyCategory('classic', '中坚'),
+      },
+      achievements: [],
+      banners: [],
+    };
+  }
+
+  const chronological = sortAkChronological(records);
+  const SESSION_GAP_MS = 30 * 86_400_000;
+
+  let normalPity = 0;
+  let classicPity = 0;
+
+  const groupCounters: Record<
+    AkGachaCategoryGroup,
+    { totalPulls: number; sixCount: number; fiveCount: number; sixPitySum: number }
+  > = {
+    limited: { totalPulls: 0, sixCount: 0, fiveCount: 0, sixPitySum: 0 },
+    normal: { totalPulls: 0, sixCount: 0, fiveCount: 0, sixPitySum: 0 },
+    classic: { totalPulls: 0, sixCount: 0, fiveCount: 0, sixPitySum: 0 },
+  };
+
+  let fourCount = 0;
+  let threeCount = 0;
+
+  const latestSessionByPool = new Map<string, BannerSessionBuilder>();
+  const allSessions: BannerSessionBuilder[] = [];
+  let sessionSeq = 1;
+
+  for (const r of chronological) {
+    const group = normalizeAkCategoryGroup(r.category);
+    const poolName = String(r.poolName || '标准寻访').trim() || '标准寻访';
+    const baseKey = `${group}::${poolName}`;
+
+    let session = latestSessionByPool.get(baseKey);
+    if (!session || r.ts - session.endTs > SESSION_GAP_MS) {
+      session = {
+        bannerKey: `${baseKey}#${sessionSeq++}`,
+        poolName,
+        categoryGroup: group,
+        rawCategory: r.category,
+        startTs: r.ts,
+        endTs: r.ts,
+        totalPulls: 0,
+        sixStars: [],
+        fiveStars: [],
+        fiveCount: 0,
+        fourCount: 0,
+        threeCount: 0,
+        limitedPity: 0,
+        trailingPity: 0,
+        records: [],
+      };
+      latestSessionByPool.set(baseKey, session);
+      allSessions.push(session);
+    }
+
+    session.startTs = Math.min(session.startTs, r.ts);
+    session.endTs = Math.max(session.endTs, r.ts);
+    session.totalPulls += 1;
+    session.records.push(r);
+
+    groupCounters[group].totalPulls += 1;
+
+    let pityForPull: number;
+    if (group === 'normal') {
+      normalPity += 1;
+      pityForPull = normalPity;
+    } else if (group === 'classic') {
+      classicPity += 1;
+      pityForPull = classicPity;
+    } else {
+      session.limitedPity += 1;
+      pityForPull = session.limitedPity;
+    }
+    session.trailingPity += 1;
+
+    if (r.rarity === 6) {
+      const luckTag: AkBannerSixStar['luckTag'] =
+        pityForPull <= 20
+          ? '超欧'
+          : pityForPull <= 35
+          ? '欧'
+          : pityForPull >= 60
+          ? '非'
+          : undefined;
+
+      session.sixStars.push({
+        id: r.id,
+        ts: r.ts,
+        charName: r.charName,
+        charId: r.charId,
+        pulls: pityForPull,
+        isNew: r.isNew,
+        ...(luckTag ? { luckTag } : {}),
+      });
+
+      groupCounters[group].sixCount += 1;
+      groupCounters[group].sixPitySum += pityForPull;
+
+      if (group === 'normal') {
+        normalPity = 0;
+      } else if (group === 'classic') {
+        classicPity = 0;
+      } else {
+        session.limitedPity = 0;
+      }
+      session.trailingPity = 0;
+    } else if (r.rarity === 5) {
+      session.fiveStars.push({
+        id: r.id,
+        ts: r.ts,
+        charName: r.charName,
+        charId: r.charId,
+        isNew: r.isNew,
+      });
+      session.fiveCount += 1;
+      groupCounters[group].fiveCount += 1;
+    } else if (r.rarity === 4) {
+      session.fourCount += 1;
+      fourCount += 1;
+    } else {
+      session.threeCount += 1;
+      threeCount += 1;
+    }
+  }
+
+  const banners: AkBannerGroup[] = allSessions
+    .map((s) => ({
+      bannerKey: s.bannerKey,
+      poolName: s.poolName,
+      categoryGroup: s.categoryGroup,
+      rawCategory: s.rawCategory,
+      startTs: s.startTs,
+      endTs: s.endTs,
+      totalPulls: s.totalPulls,
+      sixStars: s.sixStars,
+      fiveStars: s.fiveStars,
+      fiveCount: s.fiveCount,
+      fourCount: s.fourCount,
+      threeCount: s.threeCount,
+      trailingPity: s.trailingPity,
+      records: [...s.records].sort((a, b) =>
+        b.ts !== a.ts ? b.ts - a.ts : b.pos - a.pos
+      ),
+    }))
+    .sort((a, b) =>
+      b.endTs !== a.endTs ? b.endTs - a.endTs : b.startTs - a.startTs
+    );
+
+  const latestLimited = banners.find((b) => b.categoryGroup === 'limited');
+  const buildCategorySummary = (
+    group: AkGachaCategoryGroup,
+    label: string,
+    currentPity: number
+  ): AkCategorySummary => {
+    const gc = groupCounters[group];
+    const avg = gc.sixCount > 0 ? Number((gc.sixPitySum / gc.sixCount).toFixed(1)) : 0;
+    return {
+      group,
+      label,
+      totalPulls: gc.totalPulls,
+      sixCount: gc.sixCount,
+      fiveCount: gc.fiveCount,
+      avgPullsPerSix: avg,
+      ...calcAkSoftPity(currentPity),
+    };
+  };
+
+  const categories = {
+    limited: buildCategorySummary(
+      'limited',
+      '限定',
+      latestLimited ? latestLimited.trailingPity : 0
+    ),
+    normal: buildCategorySummary('normal', '标准', normalPity),
+    classic: buildCategorySummary('classic', '中坚', classicPity),
+  };
+
+  const totalPulls = records.length;
+  const totalOrundum = totalPulls * 600;
+  const sixCount =
+    groupCounters.limited.sixCount +
+    groupCounters.normal.sixCount +
+    groupCounters.classic.sixCount;
+  const fiveCount =
+    groupCounters.limited.fiveCount +
+    groupCounters.normal.fiveCount +
+    groupCounters.classic.fiveCount;
+  const totalSixPitySum =
+    groupCounters.limited.sixPitySum +
+    groupCounters.normal.sixPitySum +
+    groupCounters.classic.sixPitySum;
+
+  const avgPullsPerSix =
+    sixCount > 0 ? Number((totalSixPitySum / sixCount).toFixed(1)) : 0;
+  const sixRate = Number(((sixCount / totalPulls) * 100).toFixed(2));
+
+  let luckRating: AkGachaAnalysis['luckRating'] = 'B';
+  let title = '蓄势待发';
+  if (sixCount > 0) {
+    if (avgPullsPerSix <= 22) {
+      luckRating = 'EX';
+      title = '双层至尊欧皇';
+    } else if (avgPullsPerSix <= 30) {
+      luckRating = 'S';
+      title = '天选欧皇';
+    } else if (avgPullsPerSix <= 36) {
+      luckRating = 'A';
+      title = '欧气盈门';
+    } else if (avgPullsPerSix <= 45) {
+      luckRating = 'B';
+      title = '稳扎稳打';
+    } else {
+      luckRating = 'C';
+      title = '非酋护体';
+    }
+  }
+
+  // Dynamic achievements
+  const achievements: AkGachaAchievement[] = [];
+  const allSixStars = banners.flatMap((b) => b.sixStars);
+
+  const sixBatchCountByTs = new Map<number, number>();
+  for (const s of allSixStars) {
+    sixBatchCountByTs.set(s.ts, (sixBatchCountByTs.get(s.ts) || 0) + 1);
+  }
+  let multiBatchCount = 0;
+  let maxInBatch = 0;
+  for (const cnt of sixBatchCountByTs.values()) {
+    if (cnt >= 2) {
+      multiBatchCount += 1;
+      maxInBatch = Math.max(maxInBatch, cnt);
+    }
+  }
+  if (multiBatchCount > 0) {
+    if (maxInBatch >= 3) {
+      achievements.push({
+        label: multiBatchCount > 1 ? `十连多金 ×${multiBatchCount}` : '十连多金',
+        tone: 'emerald',
+      });
+    } else {
+      achievements.push({
+        label: multiBatchCount > 1 ? `十连两金 ×${multiBatchCount}` : '十连两金',
+        tone: 'emerald',
+      });
+    }
+  }
+
+  const onePullCount = allSixStars.filter((s) => s.pulls === 1).length;
+  if (onePullCount > 0) {
+    achievements.push({
+      label: onePullCount > 1 ? `一发入魂 ×${onePullCount}` : '一发入魂',
+      tone: 'cyan',
+    });
+  }
+
+  const ultraLuckyCount = allSixStars.filter((s) => s.pulls <= 15).length;
+  if (ultraLuckyCount > 0) {
+    achievements.push({
+      label: `超欧时刻 ×${ultraLuckyCount}`,
+      tone: 'emerald',
+    });
+  }
+
+  const wellsCount = banners
+    .filter((b) => b.categoryGroup === 'limited' && b.totalPulls >= 300)
+    .reduce((sum, b) => sum + Math.floor(b.totalPulls / 300), 0);
+  if (wellsCount > 0) {
+    achievements.push({
+      label: `抽满${wellsCount}井`,
+      tone: 'rose',
+    });
+  }
+
+  const hardPityCount = allSixStars.filter((s) => s.pulls >= 65).length;
+  if (hardPityCount > 0) {
+    achievements.push({
+      label: `极限保底 ×${hardPityCount}`,
+      tone: 'amber',
+    });
+  }
+
+  if (achievements.length === 0) {
+    achievements.push({
+      label: `六星综合出率 ${sixRate}%`,
+      tone: 'cyan',
+    });
+  }
+
+  return {
+    totalPulls,
+    totalOrundum,
+    sixCount,
+    fiveCount,
+    fourCount,
+    threeCount,
+    sixRate,
+    avgPullsPerSix,
+    luckRating,
+    title,
+    dateRange: {
+      startTs: chronological[0].ts,
+      endTs: chronological[chronological.length - 1].ts,
+    },
+    categories,
+    achievements,
+    banners,
   };
 }
 

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import {
+  computeArknightsGachaAnalysis,
   computeArknightsGachaStats,
   computeEndfieldGachaStats,
   mergeAkGachaRecords,
@@ -796,4 +797,124 @@ test('normalizeSklandRogueDetail handles rogue_5 ending IDs, JSON journey ending
   assert.equal(failRun.endingName, '血色空脉');
   assert.equal(failRun.endingName.includes('[{"type"'), false);
   assert.equal(failRun.isFavorite, false);
+});
+
+test('computeArknightsGachaAnalysis tracks 3-track independent pity, zero-6★ banners, limited isolation, and achievements', () => {
+  const baseTs = 1760000000000;
+  const day = 86_400_000;
+  const records: AkGachaRecord[] = [];
+  let idx = 0;
+
+  const pushPull = (
+    poolName: string,
+    category: AkGachaRecord['category'],
+    rarity: AkGachaRecord['rarity'],
+    ts: number,
+    pos: number,
+    charName = '测试干员',
+    isNew = false
+  ) => {
+    records.push({
+      id: `g_${idx++}`,
+      ts,
+      poolName,
+      category,
+      charId: `c_${idx}`,
+      charName,
+      rarity,
+      isNew,
+      pos,
+    });
+  };
+
+  // 1) Limited Banner 1 (zero 6★, 11 pulls -> must NOT carry into Limited Banner 2)
+  for (let i = 0; i < 11; i++) {
+    pushPull('海渊巡游', 'limited', i === 0 ? 5 : 4, baseTs + i * 1000, i, '五星干员');
+  }
+
+  // 2) Normal Banner A (zero 6★, 15 pulls -> MUST carry into Normal Banner B)
+  for (let i = 0; i < 15; i++) {
+    pushPull('标准寻访A', 'normal', 4, baseTs + 2 * day + i * 1000, i);
+  }
+
+  // 3) Normal Banner B: 9 non-6★ + 10th pull is 6★ => cumulative normal pity = 15 + 10 = 25!
+  // Plus 4 trailing pulls => categories.normal.currentPity = 4
+  for (let i = 0; i < 9; i++) {
+    pushPull('标准寻访B', 'normal', 4, baseTs + 4 * day + i * 1000, i);
+  }
+  pushPull('标准寻访B', 'normal', 6, baseTs + 4 * day + 9 * 1000, 9, '妮芙', true);
+  for (let i = 0; i < 4; i++) {
+    pushPull('标准寻访B', 'normal', 3, baseTs + 4 * day + (10 + i) * 1000, 10 + i);
+  }
+
+  // 4) Classic Banner: 3 pulls, 2nd pull 6★ => pulls === 2, classic trailing pity === 1
+  pushPull('中坚寻访 · 银心', 'classic', 4, baseTs + 6 * day, 0);
+  pushPull('中坚寻访 · 银心', 'classic', 6, baseTs + 6 * day + 1000, 1, '银灰', false);
+  pushPull('中坚寻访 · 银心', 'classic', 5, baseTs + 6 * day + 2000, 2, '德克萨斯');
+
+  // 5) Limited Banner 2:
+  // Batch 1 (pos 0..9 sharing batchTs1): pos 0 is 6★ (pulls === 1 -> 一发入魂!), pos 5 is 6★ (pulls === 5 -> same ts => 十连两金!)
+  // Batch 2 (5 trailing pulls -> categories.limited.currentPity === 5)
+  const batchTs1 = baseTs + 8 * day;
+  pushPull('将雪投火', 'limited', 6, batchTs1, 0, '将进酒干员A', true);
+  for (let p = 1; p < 5; p++) {
+    pushPull('将雪投火', 'limited', 4, batchTs1, p);
+  }
+  pushPull('将雪投火', 'limited', 6, batchTs1, 5, '将进酒干员B', true);
+  for (let p = 6; p < 10; p++) {
+    pushPull('将雪投火', 'limited', 3, batchTs1, p);
+  }
+  const batchTs2 = baseTs + 8 * day + 60_000;
+  for (let p = 0; p < 5; p++) {
+    pushPull('将雪投火', 'limited', 4, batchTs2, p);
+  }
+
+  const analysis = computeArknightsGachaAnalysis(records);
+
+  // Category totals & independent 3-track currentPity
+  assert.equal(analysis.categories.normal.totalPulls, 29);
+  assert.equal(analysis.categories.normal.sixCount, 1);
+  assert.equal(analysis.categories.normal.currentPity, 4);
+
+  assert.equal(analysis.categories.classic.totalPulls, 3);
+  assert.equal(analysis.categories.classic.sixCount, 1);
+  assert.equal(analysis.categories.classic.currentPity, 1);
+
+  assert.equal(analysis.categories.limited.totalPulls, 26);
+  assert.equal(analysis.categories.limited.sixCount, 2);
+  assert.equal(analysis.categories.limited.currentPity, 9);
+
+  // Every banner appears in newest-first order, including zero-6★ banners
+  assert.equal(analysis.banners.length, 5);
+  assert.deepEqual(
+    analysis.banners.map((b) => b.poolName),
+    ['将雪投火', '中坚寻访 · 银心', '标准寻访B', '标准寻访A', '海渊巡游']
+  );
+
+  const limitedBanner2 = analysis.banners[0];
+  const classicBanner = analysis.banners[1];
+  const normalBannerB = analysis.banners[2];
+  const normalBannerA = analysis.banners[3];
+  const limitedBanner1 = analysis.banners[4];
+
+  assert.equal(limitedBanner1.totalPulls, 11);
+  assert.equal(limitedBanner1.sixStars.length, 0);
+  assert.equal(limitedBanner1.fiveCount, 1);
+
+  assert.equal(normalBannerA.totalPulls, 15);
+  assert.equal(normalBannerA.sixStars.length, 0);
+
+  // Standard pity carried across Standard A (15) + Standard B (10) = 25
+  assert.equal(normalBannerB.sixStars[0].pulls, 25);
+  assert.equal(classicBanner.sixStars[0].pulls, 2);
+
+  // Limited isolation: Limited Banner 2 starts fresh at pull 1 (NOT 11 + 1)
+  assert.equal(limitedBanner2.sixStars[0].pulls, 1);
+  assert.equal(limitedBanner2.sixStars[1].pulls, 5);
+  assert.equal(limitedBanner2.trailingPity, 9);
+
+  // Achievements detected cleanly
+  const achLabels = analysis.achievements.map((a) => a.label);
+  assert.ok(achLabels.some((l) => l.includes('十连两金')));
+  assert.ok(achLabels.some((l) => l.includes('一发入魂')));
 });

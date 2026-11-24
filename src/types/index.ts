@@ -41,6 +41,81 @@ export interface AkGachaStats {
   sixStarTimeline: AkSixStarTimelineItem[];
 }
 
+export type AkGachaCategoryGroup = 'limited' | 'normal' | 'classic';
+
+export interface AkCategorySummary {
+  group: AkGachaCategoryGroup;
+  label: string;
+  totalPulls: number;
+  sixCount: number;
+  fiveCount: number;
+  avgPullsPerSix: number;
+  currentPity: number;
+  softPityBonus: number;
+  currentSixChance: number;
+}
+
+export interface AkBannerSixStar {
+  id: string;
+  ts: number;
+  charName: string;
+  charId: string;
+  pulls: number;
+  isNew: boolean;
+  luckTag?: '超欧' | '欧' | '非';
+}
+
+export interface AkBannerFiveStar {
+  id: string;
+  ts: number;
+  charName: string;
+  charId: string;
+  isNew: boolean;
+}
+
+export interface AkBannerGroup {
+  bannerKey: string;
+  poolName: string;
+  categoryGroup: AkGachaCategoryGroup;
+  rawCategory: string;
+  startTs: number;
+  endTs: number;
+  totalPulls: number;
+  sixStars: AkBannerSixStar[];
+  fiveStars: AkBannerFiveStar[];
+  fiveCount: number;
+  fourCount: number;
+  threeCount: number;
+  trailingPity: number;
+  records: AkGachaRecord[];
+}
+
+export interface AkGachaAchievement {
+  label: string;
+  tone: 'emerald' | 'cyan' | 'amber' | 'rose';
+}
+
+export interface AkGachaAnalysis {
+  totalPulls: number;
+  totalOrundum: number;
+  sixCount: number;
+  fiveCount: number;
+  fourCount: number;
+  threeCount: number;
+  sixRate: number;
+  avgPullsPerSix: number;
+  luckRating: 'EX' | 'S' | 'A' | 'B' | 'C';
+  title: string;
+  dateRange: { startTs: number; endTs: number } | null;
+  categories: {
+    limited: AkCategorySummary;
+    normal: AkCategorySummary;
+    classic: AkCategorySummary;
+  };
+  achievements: AkGachaAchievement[];
+  banners: AkBannerGroup[];
+}
+
 export interface GarrisonOperator {
   charId: string;
   name: string;
